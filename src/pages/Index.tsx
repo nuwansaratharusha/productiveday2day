@@ -226,11 +226,6 @@ export default function Index() {
 
         <DayActionsBar blocks={blocks} completed={completed} selectedDay={selectedDay} />
 
-        <div className="text-center py-6 text-muted-foreground text-xs border-t border-border mt-4">
-          <span className="font-bold text-primary">ZIP Solutions</span> — The Art of Hospitality
-          <br />
-          <span className="text-[11px]">Tap any block to mark it complete. Revenue first, always.</span>
-        </div>
       </div>
 
       <BlockDialog
