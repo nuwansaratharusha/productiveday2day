@@ -4,16 +4,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { TimeBlockData, CATEGORIES } from "@/data/plannerData";
+import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
 
 interface BlockDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   block: TimeBlockData | null;
   onSave: (block: Omit<TimeBlockData, "id"> & { id?: string }) => void;
+  categories?: Record<string, Category>;
 }
 
-export function BlockDialog({ open, onOpenChange, block, onSave }: BlockDialogProps) {
+export function BlockDialog({ open, onOpenChange, block, onSave, categories }: BlockDialogProps) {
+  const cats = categories || DEFAULT_CATEGORIES;
   const [form, setForm] = useState({
     block: "",
     desc: "",
@@ -54,7 +56,7 @@ export function BlockDialog({ open, onOpenChange, block, onSave }: BlockDialogPr
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Time Range</Label>
-              <Input value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))} placeholder="9:00–10:00" />
+              <Input value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))} placeholder="9:00–10:00 AM" />
             </div>
             <div>
               <Label>Duration (min)</Label>
@@ -66,9 +68,9 @@ export function BlockDialog({ open, onOpenChange, block, onSave }: BlockDialogPr
             <Select value={form.cat} onValueChange={v => setForm(p => ({ ...p, cat: v }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Object.keys(CATEGORIES).map(cat => (
+                {Object.keys(cats).map(cat => (
                   <SelectItem key={cat} value={cat}>
-                    {CATEGORIES[cat].icon} {cat}
+                    {cats[cat].icon} {cat}
                   </SelectItem>
                 ))}
               </SelectContent>

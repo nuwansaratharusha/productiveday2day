@@ -1,11 +1,13 @@
-import { TimeBlockData, CATEGORIES } from "@/data/plannerData";
+import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
 
 interface StatsBarProps {
   blocks: TimeBlockData[];
   completed: Record<string, boolean>;
+  categories?: Record<string, Category>;
 }
 
-export function StatsBar({ blocks, completed }: StatsBarProps) {
+export function StatsBar({ blocks, completed, categories }: StatsBarProps) {
+  const cats = categories || DEFAULT_CATEGORIES;
   const totalMin = blocks.reduce((s, b) => s + b.dur, 0);
   const doneMin = blocks.reduce((s, b) => s + (completed[b.id] ? b.dur : 0), 0);
   const pct = totalMin > 0 ? Math.round((doneMin / totalMin) * 100) : 0;
@@ -23,18 +25,18 @@ export function StatsBar({ blocks, completed }: StatsBarProps) {
       </div>
       <div className="h-2 bg-muted rounded-full overflow-hidden mb-4">
         <div
-          className="h-full gradient-brand rounded-full transition-all duration-500 ease-out"
+          className="h-full gradient-brand rounded-full transition-all duration-700 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
       <div className="flex flex-wrap gap-2">
         {Object.entries(catTotals).map(([cat, min]) => {
-          const c = CATEGORIES[cat];
+          const c = cats[cat];
           if (!c) return null;
           return (
             <div
               key={cat}
-              className="px-2.5 py-1 rounded-full text-xs font-semibold"
+              className="px-2.5 py-1 rounded-full text-xs font-semibold transition-all duration-200 hover:scale-105"
               style={{ background: c.color, color: c.accent }}
             >
               {c.icon} {cat}: {Math.round((min / 60) * 10) / 10}h
