@@ -1,16 +1,197 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useEffect, useCallback } from "react";
+import { Plus } from "lucide-react";
+import { useDragReorder } from "@/hooks/useDragReorder";
+import { Button } from "@/components/ui/button";
+import { PlannerHeader } from "@/components/planner/PlannerHeader";
+import { StatsBar } from "@/components/planner/StatsBar";
+import { TimeBlock } from "@/components/planner/TimeBlock";
+import { BlockDialog } from "@/components/planner/BlockDialog";
+import { DayActionsBar } from "@/components/planner/DayActionsBar";
+import { WakeUpSetup } from "@/components/planner/WakeUpSetup";
+import {
+  TimeBlockData,
+  DAYS,
+  getCurrentTimeBlock,
+} from "@/data/plannerData";
+import { generateSchedule, recalculateTimes } from "@/lib/scheduleGenerator";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const STORAGE_KEY = "zip-planner-blocks";
+const WAKEUP_KEY = "zip-planner-wakeup";
+
+function loadBlocks(): { weekday: TimeBlockData[]; weekend: TimeBlockData[] } | null {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return null;
+}
+
+function saveBlocks(data: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+export default function Index() {
+  const savedWakeUp = localStorage.getItem(WAKEUP_KEY);
+  const [wakeUpTime, setWakeUpTime] = useState<string | null>(savedWakeUp);
+
+  const today = new Date().getDay();
+  const defaultDay = today === 0 ? 6 : today - 1;
+  const [selectedDay, setSelectedDay] = useState(defaultDay);
+  const isWeekend = selectedDay >= 5;
+
+  const [allBlocks, setAllBlocks] = useState<{ weekday: TimeBlockData[]; weekend: TimeBlockData[] }>(
+    () => loadBlocks() || { weekday: [], weekend: [] }
+  );
+  const blocks = isWeekend ? allBlocks.weekend : allBlocks.weekday;
+
+  const [completed, setCompleted] = useState<Record<string, boolean>>({});
+  const [time, setTime] = useState(new Date());
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingBlock, setEditingBlock] = useState<TimeBlockData | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTime(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    setCompleted({});
+  }, [selectedDay]);
+
+  const handleWakeUpConfirm = (wt: string) => {
+    setWakeUpTime(wt);
+    localStorage.setItem(WAKEUP_KEY, wt);
+    const schedule = generateSchedule(wt);
+    setAllBlocks(schedule);
+    saveBlocks(schedule);
+  };
+
+  const activeIndex = selectedDay === defaultDay ? getCurrentTimeBlock(blocks) : -1;
+
+  const updateBlocks = useCallback(
+    (newBlocks: TimeBlockData[]) => {
+      const updated = {
+        ...allBlocks,
+        [isWeekend ? "weekend" : "weekday"]: newBlocks,
+      };
+      setAllBlocks(updated);
+      saveBlocks(updated);
+    },
+    [allBlocks, isWeekend]
+  );
+
+  const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
+    const newBlocks = [...blocks];
+    const [moved] = newBlocks.splice(fromIndex, 1);
+    newBlocks.splice(toIndex, 0, moved);
+    const recalculated = recalculateTimes(newBlocks);
+    updateBlocks(recalculated);
+  }, [blocks, updateBlocks]);
+
+  const {
+    containerRef,
+    dragState,
+    handleDragStart,
+    handleDragEnd,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useDragReorder(blocks.length, handleReorder);
+
+  const handleSave = (data: Omit<TimeBlockData, "id"> & { id?: string }) => {
+    let newBlocks: TimeBlockData[];
+    if (data.id) {
+      newBlocks = blocks.map((b) => (b.id === data.id ? { ...b, ...data } as TimeBlockData : b));
+    } else {
+      const newBlock: TimeBlockData = { ...data, id: `block-${Date.now()}` } as TimeBlockData;
+      newBlocks = [...blocks, newBlock];
+    }
+    updateBlocks(recalculateTimes(newBlocks));
+  };
+
+  const handleDelete = (id: string) => {
+    const newBlocks = blocks.filter((b) => b.id !== id);
+    updateBlocks(recalculateTimes(newBlocks));
+  };
+
+  if (!wakeUpTime && !loadBlocks()) {
+    return <WakeUpSetup onConfirm={handleWakeUpConfirm} />;
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background">
+      <PlannerHeader
+        selectedDay={selectedDay}
+        defaultDay={defaultDay}
+        time={time}
+        onSelectDay={setSelectedDay}
+      />
+
+      <div className="max-w-2xl mx-auto px-4 py-5 pb-10">
+        <StatsBar blocks={blocks} completed={completed} />
+
+        <div className="flex justify-between items-center mb-3 px-1">
+          <span className="text-sm font-bold text-foreground">
+            {isWeekend ? "Weekend Schedule" : "Weekday Schedule"} — {DAYS[selectedDay]}
+          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">
+              {blocks.length} blocks · {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs font-semibold"
+              onClick={() => { setEditingBlock(null); setDialogOpen(true); }}
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Block
+            </Button>
+          </div>
+        </div>
+
+        <div ref={containerRef}>
+          {blocks.map((block, i) => (
+            <TimeBlock
+              key={block.id}
+              block={block}
+              isActive={i === activeIndex}
+              completed={!!completed[block.id]}
+              isDragging={dragState.dragIndex === i}
+              isDropTarget={dragState.dropIndex === i}
+              dropPosition={dragState.dropIndex === i ? dragState.dropPosition : null}
+              onToggle={() => setCompleted((prev) => ({ ...prev, [block.id]: !prev[block.id] }))}
+              onEdit={() => { setEditingBlock(block); setDialogOpen(true); }}
+              onDelete={() => handleDelete(block.id)}
+              onDragStart={handleDragStart(i)}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver(i)}
+              onDragLeave={handleDragLeave(i)}
+              onDrop={handleDrop(i)}
+              onTouchStart={handleTouchStart(i)}
+              onTouchMove={handleTouchMove(i)}
+              onTouchEnd={handleTouchEnd(i)}
+            />
+          ))}
+        </div>
+
+        <DayActionsBar blocks={blocks} completed={completed} selectedDay={selectedDay} />
+
+        <div className="text-center py-6 text-muted-foreground text-xs border-t border-border mt-4">
+          <span className="font-bold text-primary">ZIP Solutions</span> — The Art of Hospitality
+          <br />
+          <span className="text-[11px]">Tap any block to mark it complete. Revenue first, always.</span>
+        </div>
+      </div>
+
+      <BlockDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        block={editingBlock}
+        onSave={handleSave}
+      />
     </div>
   );
-};
-
-const Index = PlaceholderIndex;
-
-export default Index;
+}
