@@ -154,43 +154,46 @@ export default function Index() {
         onSelectDay={setSelectedDay}
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-5 pb-10">
+      <div className="max-w-2xl mx-auto px-4 pt-5 pb-12">
         <StatsBar blocks={blocks} completed={completed} categories={categories} />
 
         {isBreakActive && activeBlock && (
           <BreakSuggestionCard blockName={activeBlock.block} />
         )}
 
-        <div className="flex justify-between items-center mb-3 px-1">
-          <span className="text-sm font-bold text-foreground">
-            {isWeekend ? "Weekend Schedule" : "Weekday Schedule"} — {DAYS[selectedDay]}
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">
+        {/* Schedule section header */}
+        <div className="flex justify-between items-center mb-3 px-0.5">
+          <div>
+            <span className="text-[12px] font-bold text-foreground">
+              {isWeekend ? "Weekend" : "Weekday"} — {DAYS[selectedDay]}
+            </span>
+            <span className="text-[11px] text-muted-foreground ml-2">
               {blocks.length} blocks · {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
             </span>
+          </div>
+          <div className="flex items-center gap-1">
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
               onClick={() => setCatManagerOpen(true)}
               title="Manage Categories"
             >
-              <Palette className="w-4 h-4" />
+              <Palette className="w-3.5 h-3.5" />
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
               onClick={handleResetOnboarding}
               title="Reset & Re-do Onboarding"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="h-8 gap-1.5 text-xs font-semibold"
+              className="h-8 gap-1.5 text-xs font-semibold rounded-lg ml-1 px-3"
               onClick={() => { setEditingBlock(null); setDialogOpen(true); }}
             >
               <Plus className="w-3.5 h-3.5" /> Add Block

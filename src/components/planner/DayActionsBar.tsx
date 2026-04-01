@@ -1,4 +1,4 @@
-import { Download, Calendar, CalendarPlus } from "lucide-react";
+import { Download, CalendarPlus, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TimeBlockData } from "@/data/plannerData";
 import { downloadDailyReport, pushToGoogleCalendar } from "@/lib/calendarUtils";
@@ -17,10 +17,7 @@ export function DayActionsBar({ blocks, completed, selectedDay }: DayActionsBarP
 
   const handleDownload = () => {
     downloadDailyReport(blocks, completed, selectedDay);
-    toast({
-      title: "Report downloaded",
-      description: `Your daily report has been saved.`,
-    });
+    toast({ title: "Report downloaded", description: "Your daily report has been saved." });
   };
 
   const handlePushCalendar = () => {
@@ -35,26 +32,27 @@ export function DayActionsBar({ blocks, completed, selectedDay }: DayActionsBarP
     }
     toast({
       title: "Calendar file downloaded",
-      description: `${count} block${count > 1 ? "s" : ""} exported as .ics file. Open it to import into Google Calendar.`,
+      description: `${count} block${count > 1 ? "s" : ""} exported as .ics. Open it to import into Google Calendar.`,
     });
   };
 
   return (
-    <div className="bg-card rounded-2xl p-4 border border-border shadow-sm mt-4">
+    <div className="bg-card rounded-2xl border border-border shadow-card mt-4 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-primary" />
-          <span className="text-sm font-bold text-card-foreground">End of Day Actions</span>
+          <CheckSquare className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-[12px] font-bold text-card-foreground">End of Day</span>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {completedCount}/{totalCount} completed
+        <span className="text-[11px] text-muted-foreground">
+          <span className="font-semibold text-foreground">{completedCount}</span> / {totalCount} done
         </span>
       </div>
+
       <div className="flex gap-2">
         <Button
           variant="outline"
           size="sm"
-          className="flex-1 h-9 gap-2 text-xs font-semibold"
+          className="flex-1 h-9 gap-1.5 text-xs font-semibold rounded-lg"
           onClick={handleDownload}
         >
           <Download className="w-3.5 h-3.5" />
@@ -62,16 +60,17 @@ export function DayActionsBar({ blocks, completed, selectedDay }: DayActionsBarP
         </Button>
         <Button
           size="sm"
-          className="flex-1 h-9 gap-2 text-xs font-semibold gradient-brand text-primary-foreground border-0"
+          className="flex-1 h-9 gap-1.5 text-xs font-semibold gradient-brand text-primary-foreground border-0 rounded-lg"
           onClick={handlePushCalendar}
           disabled={!hasCompleted}
         >
           <CalendarPlus className="w-3.5 h-3.5" />
-          Push to Google Calendar
+          Push to Calendar
         </Button>
       </div>
+
       {!hasCompleted && (
-        <p className="text-[11px] text-muted-foreground mt-2 text-center">
+        <p className="text-[11px] text-muted-foreground mt-2.5 text-center">
           Complete blocks to enable calendar export
         </p>
       )}

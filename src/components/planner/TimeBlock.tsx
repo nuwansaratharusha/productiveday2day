@@ -1,5 +1,5 @@
 import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
-import { Check, Pencil, Trash2, GripVertical } from "lucide-react";
+import { Check, Pencil, Trash2, GripVertical, Zap } from "lucide-react";
 
 interface TimeBlockProps {
   block: TimeBlockData;
@@ -30,17 +30,21 @@ export function TimeBlock({
   categories,
 }: TimeBlockProps) {
   const cats = categories || DEFAULT_CATEGORIES;
-  const cat = cats[block.cat] || { color: "hsl(0 0% 90%)", accent: "hsl(0 0% 50%)", icon: "📌" };
+  const cat = cats[block.cat] || { color: "hsl(220 14% 93%)", accent: "hsl(220 10% 48%)", icon: "📌" };
 
   return (
     <div
-      className={`group flex items-stretch rounded-xl overflow-hidden mb-2 cursor-pointer transition-all duration-300 relative bg-card ${
-        isDragging ? "opacity-40 scale-[0.97] rotate-[0.5deg]" : ""
-      } ${
-        isActive
-          ? "ring-2 ring-primary shadow-lg shadow-primary/10"
-          : "border border-border hover:border-primary/30 hover:shadow-sm"
-      } ${completed ? "opacity-50" : ""}`}
+      className={`
+        group relative flex items-stretch rounded-xl overflow-hidden mb-2
+        bg-card border transition-all duration-200 cursor-pointer
+        ${isDragging ? "opacity-40 scale-[0.98]" : ""}
+        ${isActive
+          ? "border-primary/25 shadow-card-hover"
+          : "border-border hover:border-border hover:shadow-card-hover"
+        }
+        ${completed ? "opacity-55" : ""}
+      `}
+      style={isActive ? { boxShadow: "0 0 0 1px hsl(14 90% 48% / 0.15), 0 4px 12px 0 rgb(0 0 0 / 0.07)" } : {}}
       onClick={onToggle}
       draggable
       onDragStart={onDragStart}
@@ -49,77 +53,112 @@ export function TimeBlock({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      {/* Drop indicators */}
       {isDropTarget && dropPosition === "above" && (
-        <div className="absolute -top-[2px] left-0 right-0 h-[3px] gradient-brand rounded-full z-10 animate-pulse" />
+        <div className="absolute -top-px left-4 right-4 h-0.5 gradient-brand rounded-full z-10" />
       )}
       {isDropTarget && dropPosition === "below" && (
-        <div className="absolute -bottom-[2px] left-0 right-0 h-[3px] gradient-brand rounded-full z-10 animate-pulse" />
+        <div className="absolute -bottom-px left-4 right-4 h-0.5 gradient-brand rounded-full z-10" />
       )}
 
+      {/* Active: subtle brand top stripe */}
       {isActive && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 gradient-brand animate-pulse-active" />
+        <div className="absolute top-0 left-0 right-0 h-[2px] gradient-brand opacity-70" />
       )}
 
+      {/* Drag handle */}
       <div
-        className="flex items-center justify-center w-7 flex-shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
+        className="flex items-center justify-center w-6 flex-shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/25 group-hover:text-muted-foreground/50 transition-colors touch-none"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        <GripVertical className="w-4 h-4" />
+        <GripVertical className="w-3.5 h-3.5" />
       </div>
 
-      <div className="w-1 flex-shrink-0" style={{ background: cat.accent }} />
-      <div className="py-3 px-4 flex-1 flex items-center gap-3.5">
+      {/* Category accent bar */}
+      <div
+        className="w-[3px] flex-shrink-0 my-3 rounded-full"
+        style={{ background: cat.accent }}
+      />
+
+      {/* Main content */}
+      <div className="py-3 px-3.5 flex-1 flex items-center gap-3 min-w-0">
+
+        {/* Checkbox */}
         <div
-          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all duration-200"
+          className="w-[18px] h-[18px] rounded-[5px] flex items-center justify-center flex-shrink-0 transition-all duration-200 border-[1.5px]"
           style={{
-            border: completed ? "none" : `2px solid ${cat.accent}`,
+            borderColor: completed ? cat.accent : cat.accent + "80",
             background: completed ? cat.accent : "transparent",
-            color: completed ? "white" : "transparent",
-            transform: completed ? "scale(1.1)" : "scale(1)",
           }}
         >
-          {completed && <Check className="w-3 h-3" />}
+          {completed && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
         </div>
+
+        {/* Text */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-bold text-sm text-card-foreground transition-all duration-200 ${completed ? "line-through opacity-60" : ""}`}>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={`font-semibold text-[13px] leading-snug transition-all duration-200 ${
+                completed ? "line-through text-muted-foreground" : "text-card-foreground"
+              }`}
+            >
               {block.block}
             </span>
+
             <span
-              className="text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap"
+              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap"
               style={{ background: cat.color, color: cat.accent }}
             >
-              {cat.icon} {block.cat}
+              <span>{cat.icon}</span>
+              {block.cat}
             </span>
+
             {isActive && (
-              <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold tracking-wider animate-pulse-active">
+              <span className="inline-flex items-center gap-0.5 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold tracking-wider animate-pulse-active">
+                <Zap className="w-2.5 h-2.5" />
                 NOW
               </span>
             )}
           </div>
-          <div className={`text-xs text-muted-foreground mt-0.5 transition-all duration-200 ${completed ? "line-through opacity-60" : ""}`}>
-            {block.desc}
-          </div>
+
+          {block.desc && (
+            <p
+              className={`text-[11px] text-muted-foreground mt-0.5 leading-snug truncate ${
+                completed ? "line-through" : ""
+              }`}
+            >
+              {block.desc}
+            </p>
+          )}
         </div>
+
+        {/* Time */}
         <div className="text-right flex-shrink-0">
-          <div className="text-xs font-bold text-card-foreground">{block.time}</div>
-          <div className="text-[11px] text-muted-foreground">{block.dur} min</div>
+          <div className="text-[12px] font-bold text-card-foreground leading-none">{block.time}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{block.dur}m</div>
         </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+
+        {/* Actions — revealed on hover */}
+        <div
+          className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            onClick={onEdit}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground/60 hover:text-foreground transition-colors"
+            aria-label="Edit"
           >
-            <Pencil className="w-3.5 h-3.5" />
+            <Pencil className="w-3 h-3" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            onClick={onDelete}
+            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground/60 hover:text-destructive transition-colors"
+            aria-label="Delete"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-3 h-3" />
           </button>
         </div>
       </div>
