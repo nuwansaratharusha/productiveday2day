@@ -206,6 +206,7 @@ export default function Index() {
             <TimeBlock
               key={block.id}
               block={block}
+              index={i}
               isActive={i === activeIndex}
               completed={!!completed[block.id]}
               isDragging={dragState.dragIndex === i}
