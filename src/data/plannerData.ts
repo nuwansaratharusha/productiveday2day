@@ -13,60 +13,43 @@ export interface Category {
   icon: string;
 }
 
-export const CATEGORIES: Record<string, Category> = {
-  Personal: { color: "hsl(var(--cat-personal))", accent: "hsl(var(--cat-personal-accent))", icon: "☀" },
-  Learning: { color: "hsl(var(--cat-learning))", accent: "hsl(var(--cat-learning-accent))", icon: "📖" },
-  Revenue: { color: "hsl(var(--cat-revenue))", accent: "hsl(var(--cat-revenue-accent))", icon: "💰" },
-  Operations: { color: "hsl(var(--cat-operations))", accent: "hsl(var(--cat-operations-accent))", icon: "⚙" },
-  Delivery: { color: "hsl(var(--cat-delivery))", accent: "hsl(var(--cat-delivery-accent))", icon: "🔧" },
-  Product: { color: "hsl(var(--cat-product))", accent: "hsl(var(--cat-product-accent))", icon: "🚀" },
-  "Side Projects": { color: "hsl(var(--cat-side))", accent: "hsl(var(--cat-side-accent))", icon: "🎯" },
-  Branding: { color: "hsl(var(--cat-branding))", accent: "hsl(var(--cat-branding-accent))", icon: "✦" },
-  CIM: { color: "hsl(var(--cat-cim))", accent: "hsl(var(--cat-cim-accent))", icon: "🎓" },
+const CATEGORIES_KEY = "zip-planner-categories";
+
+export const DEFAULT_CATEGORIES: Record<string, Category> = {
+  Personal: { color: "hsl(46 100% 94%)", accent: "hsl(40 94% 56%)", icon: "☀" },
+  Learning: { color: "hsl(213 100% 94%)", accent: "hsl(213 77% 37%)", icon: "📖" },
+  Revenue: { color: "hsl(0 100% 95%)", accent: "hsl(0 77% 47%)", icon: "💰" },
+  Operations: { color: "hsl(280 100% 95%)", accent: "hsl(280 77% 35%)", icon: "⚙" },
+  Delivery: { color: "hsl(133 100% 95%)", accent: "hsl(133 77% 35%)", icon: "🔧" },
+  Product: { color: "hsl(187 100% 95%)", accent: "hsl(187 80% 28%)", icon: "🚀" },
+  "Side Projects": { color: "hsl(27 100% 94%)", accent: "hsl(27 100% 45%)", icon: "🎯" },
+  Branding: { color: "hsl(340 100% 95%)", accent: "hsl(340 72% 39%)", icon: "✦" },
+  CIM: { color: "hsl(40 100% 94%)", accent: "hsl(27 100% 45%)", icon: "🎓" },
+  Health: { color: "hsl(133 100% 95%)", accent: "hsl(133 77% 35%)", icon: "💪" },
+  Creative: { color: "hsl(280 100% 95%)", accent: "hsl(280 77% 35%)", icon: "🎨" },
+  Networking: { color: "hsl(187 100% 95%)", accent: "hsl(187 80% 28%)", icon: "🤝" },
 };
 
+export function loadCategories(): Record<string, Category> {
+  try {
+    const saved = localStorage.getItem(CATEGORIES_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { ...DEFAULT_CATEGORIES };
+}
+
+export function saveCategories(cats: Record<string, Category>) {
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(cats));
+}
+
+// Keep CATEGORIES as a mutable reference for backward compat
+export let CATEGORIES: Record<string, Category> = loadCategories();
+
+export function updateCategoriesRef(cats: Record<string, Category>) {
+  CATEGORIES = cats;
+}
+
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-let idCounter = 0;
-const makeId = () => `block-${++idCounter}`;
-
-export const defaultWeekdayBlocks: TimeBlockData[] = [
-  { id: makeId(), time: "6:00–6:30 AM", block: "Morning Ritual", desc: "Wake up, hydrate, 10 min walk/stretch, review day plan", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "6:30–7:30 AM", block: "Deep Learning", desc: "OTA-to-direct booking research, neuromarketing reading, books", cat: "Learning", dur: 60 },
-  { id: makeId(), time: "7:30–8:00 AM", block: "Breakfast + News", desc: "Eat, scan hospitality industry news", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "8:00–9:30 AM", block: "Client Outreach", desc: "Upwork pitching (3-5 proposals), hotel direct mailing, GM emails", cat: "Revenue", dur: 90 },
-  { id: makeId(), time: "9:30–10:00 AM", block: "Finance Check", desc: "Personal + business credit/debit review, invoices", cat: "Operations", dur: 30 },
-  { id: makeId(), time: "10:00 AM–12:00 PM", block: "Core Delivery", desc: "ZIP client work, web app dev, automation flows", cat: "Delivery", dur: 120 },
-  { id: makeId(), time: "12:00–12:30 PM", block: "Lunch Break", desc: "Eat, rest, no screens", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "12:30–1:30 PM", block: "ZIP Web App Dev", desc: "Dedicated development sprint on ZIP web application", cat: "Product", dur: 60 },
-  { id: makeId(), time: "1:30–2:30 PM", block: "Cafe Connect + Batiks", desc: "Cafe Connect project, Gunatilake Batiks 10-year plan", cat: "Side Projects", dur: 60 },
-  { id: makeId(), time: "2:30–3:30 PM", block: "Hotel Visits", desc: "In-person GM meetings, hotel audits, site visits", cat: "Revenue", dur: 60 },
-  { id: makeId(), time: "3:30–4:00 PM", block: "Break + Recharge", desc: "Tea, short walk, clear mental space", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "4:00–5:00 PM", block: "Automation & AI", desc: "Learn and build automation flows, AI tool integration", cat: "Learning", dur: 60 },
-  { id: makeId(), time: "5:00–6:00 PM", block: "LinkedIn + Branding", desc: "Write and schedule LinkedIn posts, personal brand content", cat: "Branding", dur: 60 },
-  { id: makeId(), time: "6:00–6:30 PM", block: "Dinner + Rest", desc: "Eat, decompress", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "6:30–7:30 PM", block: "Script + Content", desc: "Script writing for reels/videos, content post creation", cat: "Branding", dur: 60 },
-  { id: makeId(), time: "7:30–8:00 PM", block: "Engage + Comment", desc: "Engage on 5-10 target posts, entrepreneurs, hotel GMs", cat: "Branding", dur: 30 },
-  { id: makeId(), time: "8:00–9:00 PM", block: "Evening Learning", desc: "CIM lecture prep, reading books & research papers", cat: "Learning", dur: 60 },
-  { id: makeId(), time: "9:00–9:30 PM", block: "Day Review + Plan", desc: "Review today, plan tomorrow, update task board", cat: "Operations", dur: 30 },
-  { id: makeId(), time: "9:30–10:00 PM", block: "Wind Down", desc: "No screens, prepare for sleep", cat: "Personal", dur: 30 },
-];
-
-export const defaultWeekendBlocks: TimeBlockData[] = [
-  { id: makeId(), time: "6:00–6:30 AM", block: "Morning Ritual", desc: "Same routine — consistency matters", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "6:30–8:00 AM", block: "CIM Lecture Prep", desc: "Pre-read material, prepare questions, review notes", cat: "Learning", dur: 90 },
-  { id: makeId(), time: "8:00 AM–12:00 PM", block: "CIM LECTURE", desc: "Attend CIM class — full focus, no multitasking", cat: "CIM", dur: 240 },
-  { id: makeId(), time: "12:00–1:00 PM", block: "Lunch + Rest", desc: "Eat, decompress after lecture", cat: "Personal", dur: 60 },
-  { id: makeId(), time: "1:00–2:30 PM", block: "Content Batch", desc: "Film 2-3 reels, batch all video in one sitting", cat: "Branding", dur: 90 },
-  { id: makeId(), time: "2:30–3:30 PM", block: "Content Editing", desc: "Edit reels, captions, text overlays, schedule week", cat: "Branding", dur: 60 },
-  { id: makeId(), time: "3:30–4:00 PM", block: "Break", desc: "Rest, recharge", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "4:00–5:30 PM", block: "Weekly Review", desc: "Finances, client pipeline, KPIs, update roadmap", cat: "Operations", dur: 90 },
-  { id: makeId(), time: "5:30–6:30 PM", block: "Deep Reading", desc: "Books, research papers, neuromarketing studies", cat: "Learning", dur: 60 },
-  { id: makeId(), time: "6:30–7:00 PM", block: "Dinner", desc: "Eat, relax", cat: "Personal", dur: 30 },
-  { id: makeId(), time: "7:00–8:00 PM", block: "Next Week Planning", desc: "Map priorities, schedule hotel visits, plan outreach", cat: "Operations", dur: 60 },
-  { id: makeId(), time: "8:00–9:00 PM", block: "Side Projects", desc: "Cafe Connect, Gunatilake Batiks, ZIP product research", cat: "Side Projects", dur: 60 },
-  { id: makeId(), time: "9:00–9:30 PM", block: "Wind Down", desc: "Reflect, journal, no screens", cat: "Personal", dur: 30 },
-];
 
 function parse12HourTime(timeStr: string): number {
   const cleaned = timeStr.trim();

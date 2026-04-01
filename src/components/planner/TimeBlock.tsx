@@ -1,4 +1,4 @@
-import { TimeBlockData, CATEGORIES } from "@/data/plannerData";
+import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
 import { Check, Pencil, Trash2, GripVertical } from "lucide-react";
 
 interface TimeBlockProps {
@@ -19,6 +19,7 @@ interface TimeBlockProps {
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: (e: React.TouchEvent) => void;
+  categories?: Record<string, Category>;
 }
 
 export function TimeBlock({
@@ -26,13 +27,15 @@ export function TimeBlock({
   isDragging, isDropTarget, dropPosition,
   onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
   onTouchStart, onTouchMove, onTouchEnd,
+  categories,
 }: TimeBlockProps) {
-  const cat = CATEGORIES[block.cat] || CATEGORIES.Personal;
+  const cats = categories || DEFAULT_CATEGORIES;
+  const cat = cats[block.cat] || { color: "hsl(0 0% 90%)", accent: "hsl(0 0% 50%)", icon: "📌" };
 
   return (
     <div
-      className={`group flex items-stretch rounded-xl overflow-hidden mb-2 cursor-pointer transition-all duration-200 relative bg-card ${
-        isDragging ? "opacity-40 scale-[0.97]" : ""
+      className={`group flex items-stretch rounded-xl overflow-hidden mb-2 cursor-pointer transition-all duration-300 relative bg-card ${
+        isDragging ? "opacity-40 scale-[0.97] rotate-[0.5deg]" : ""
       } ${
         isActive
           ? "ring-2 ring-primary shadow-lg shadow-primary/10"
@@ -47,10 +50,10 @@ export function TimeBlock({
       onDrop={onDrop}
     >
       {isDropTarget && dropPosition === "above" && (
-        <div className="absolute -top-[2px] left-0 right-0 h-[3px] gradient-brand rounded-full z-10" />
+        <div className="absolute -top-[2px] left-0 right-0 h-[3px] gradient-brand rounded-full z-10 animate-pulse" />
       )}
       {isDropTarget && dropPosition === "below" && (
-        <div className="absolute -bottom-[2px] left-0 right-0 h-[3px] gradient-brand rounded-full z-10" />
+        <div className="absolute -bottom-[2px] left-0 right-0 h-[3px] gradient-brand rounded-full z-10 animate-pulse" />
       )}
 
       {isActive && (
@@ -70,18 +73,19 @@ export function TimeBlock({
       <div className="w-1 flex-shrink-0" style={{ background: cat.accent }} />
       <div className="py-3 px-4 flex-1 flex items-center gap-3.5">
         <div
-          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-colors"
+          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all duration-200"
           style={{
             border: completed ? "none" : `2px solid ${cat.accent}`,
             background: completed ? cat.accent : "transparent",
             color: completed ? "white" : "transparent",
+            transform: completed ? "scale(1.1)" : "scale(1)",
           }}
         >
           {completed && <Check className="w-3 h-3" />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-bold text-sm text-card-foreground ${completed ? "line-through" : ""}`}>
+            <span className={`font-bold text-sm text-card-foreground transition-all duration-200 ${completed ? "line-through opacity-60" : ""}`}>
               {block.block}
             </span>
             <span
@@ -96,7 +100,7 @@ export function TimeBlock({
               </span>
             )}
           </div>
-          <div className={`text-xs text-muted-foreground mt-0.5 ${completed ? "line-through" : ""}`}>
+          <div className={`text-xs text-muted-foreground mt-0.5 transition-all duration-200 ${completed ? "line-through opacity-60" : ""}`}>
             {block.desc}
           </div>
         </div>
@@ -104,7 +108,7 @@ export function TimeBlock({
           <div className="text-xs font-bold text-card-foreground">{block.time}</div>
           <div className="text-[11px] text-muted-foreground">{block.dur} min</div>
         </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Palette, RotateCcw } from "lucide-react";
 import { useDragReorder } from "@/hooks/useDragReorder";
 import { Button } from "@/components/ui/button";
 import { PlannerHeader } from "@/components/planner/PlannerHeader";
@@ -7,16 +7,23 @@ import { StatsBar } from "@/components/planner/StatsBar";
 import { TimeBlock } from "@/components/planner/TimeBlock";
 import { BlockDialog } from "@/components/planner/BlockDialog";
 import { DayActionsBar } from "@/components/planner/DayActionsBar";
-import { WakeUpSetup } from "@/components/planner/WakeUpSetup";
+import { OnboardingWizard, OnboardingData } from "@/components/planner/OnboardingWizard";
+import { CategoryManager } from "@/components/planner/CategoryManager";
+import { BreakSuggestionCard } from "@/components/planner/BreakSuggestionCard";
 import {
   TimeBlockData,
   DAYS,
   getCurrentTimeBlock,
+  loadCategories,
+  saveCategories,
+  updateCategoriesRef,
+  Category,
 } from "@/data/plannerData";
-import { generateSchedule, recalculateTimes } from "@/lib/scheduleGenerator";
+import { generateSmartSchedule } from "@/lib/smartScheduleGenerator";
+import { recalculateTimes } from "@/lib/scheduleGenerator";
 
 const STORAGE_KEY = "zip-planner-blocks";
-const WAKEUP_KEY = "zip-planner-wakeup";
+const ONBOARDING_KEY = "zip-planner-onboarding";
 
 function loadBlocks(): { weekday: TimeBlockData[]; weekend: TimeBlockData[] } | null {
   try {
@@ -31,8 +38,8 @@ function saveBlocks(data: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }
 }
 
 export default function Index() {
-  const savedWakeUp = localStorage.getItem(WAKEUP_KEY);
-  const [wakeUpTime, setWakeUpTime] = useState<string | null>(savedWakeUp);
+  const savedOnboarding = localStorage.getItem(ONBOARDING_KEY);
+  const [onboarded, setOnboarded] = useState<boolean>(!!savedOnboarding || !!loadBlocks());
 
   const today = new Date().getDay();
   const defaultDay = today === 0 ? 6 : today - 1;
@@ -48,6 +55,8 @@ export default function Index() {
   const [time, setTime] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<TimeBlockData | null>(null);
+  const [catManagerOpen, setCatManagerOpen] = useState(false);
+  const [categories, setCategoriesState] = useState<Record<string, Category>>(loadCategories);
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 60000);
@@ -58,15 +67,30 @@ export default function Index() {
     setCompleted({});
   }, [selectedDay]);
 
-  const handleWakeUpConfirm = (wt: string) => {
-    setWakeUpTime(wt);
-    localStorage.setItem(WAKEUP_KEY, wt);
-    const schedule = generateSchedule(wt);
+  const handleOnboardingComplete = (data: OnboardingData) => {
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify(data));
+    const schedule = generateSmartSchedule(data);
     setAllBlocks(schedule);
     saveBlocks(schedule);
+    setOnboarded(true);
+  };
+
+  const handleResetOnboarding = () => {
+    localStorage.removeItem(ONBOARDING_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+    setOnboarded(false);
+    setAllBlocks({ weekday: [], weekend: [] });
+  };
+
+  const handleCategorySave = (cats: Record<string, Category>) => {
+    setCategoriesState(cats);
+    saveCategories(cats);
+    updateCategoriesRef(cats);
   };
 
   const activeIndex = selectedDay === defaultDay ? getCurrentTimeBlock(blocks) : -1;
+  const activeBlock = activeIndex >= 0 ? blocks[activeIndex] : null;
+  const isBreakActive = activeBlock?.block.toLowerCase().includes("break") && !activeBlock?.block.toLowerCase().includes("breakfast");
 
   const updateBlocks = useCallback(
     (newBlocks: TimeBlockData[]) => {
@@ -117,8 +141,8 @@ export default function Index() {
     updateBlocks(recalculateTimes(newBlocks));
   };
 
-  if (!wakeUpTime && !loadBlocks()) {
-    return <WakeUpSetup onConfirm={handleWakeUpConfirm} />;
+  if (!onboarded) {
+    return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
   return (
@@ -131,16 +155,38 @@ export default function Index() {
       />
 
       <div className="max-w-2xl mx-auto px-4 py-5 pb-10">
-        <StatsBar blocks={blocks} completed={completed} />
+        <StatsBar blocks={blocks} completed={completed} categories={categories} />
+
+        {isBreakActive && activeBlock && (
+          <BreakSuggestionCard blockName={activeBlock.block} />
+        )}
 
         <div className="flex justify-between items-center mb-3 px-1">
           <span className="text-sm font-bold text-foreground">
             {isWeekend ? "Weekend Schedule" : "Weekday Schedule"} — {DAYS[selectedDay]}
           </span>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
               {blocks.length} blocks · {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
             </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              onClick={() => setCatManagerOpen(true)}
+              title="Manage Categories"
+            >
+              <Palette className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              onClick={handleResetOnboarding}
+              title="Reset & Re-do Onboarding"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -173,6 +219,7 @@ export default function Index() {
               onTouchStart={handleTouchStart(i)}
               onTouchMove={handleTouchMove(i)}
               onTouchEnd={handleTouchEnd(i)}
+              categories={categories}
             />
           ))}
         </div>
@@ -191,6 +238,14 @@ export default function Index() {
         onOpenChange={setDialogOpen}
         block={editingBlock}
         onSave={handleSave}
+        categories={categories}
+      />
+
+      <CategoryManager
+        open={catManagerOpen}
+        onOpenChange={setCatManagerOpen}
+        categories={categories}
+        onSave={handleCategorySave}
       />
     </div>
   );
