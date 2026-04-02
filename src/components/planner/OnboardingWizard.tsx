@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Sun, Briefcase, Brain, Target, Coffee, ArrowRight, ArrowLeft, Sparkles, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import zipLogo from "@/assets/zip-logo.png";
 
 export interface OnboardingData {
   wakeUpTime: string;
@@ -103,16 +102,6 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-[420px]">
-
-        {/* Brand mark */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center shadow-card">
-            <img src={zipLogo} alt="ZIP" className="h-[14px] invert brightness-200" />
-          </div>
-          <span className="text-sm font-bold text-foreground tracking-tight">ZIP</span>
-          <span className="text-muted-foreground text-sm">·</span>
-          <span className="text-sm text-muted-foreground">Daily Operating System</span>
-        </div>
 
         {/* Step progress */}
         <div className="flex items-center justify-between mb-6 px-1">
