@@ -1,6 +1,6 @@
 import { DAYS } from "@/data/plannerData";
 import zipLogo from "@/assets/zip-logo.png";
-import { Clock } from "lucide-react";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 interface PlannerHeaderProps {
   selectedDay: number;
@@ -46,14 +46,17 @@ export function PlannerHeader({ selectedDay, defaultDay, time, onSelectDay }: Pl
             </div>
           </div>
 
-          {/* Live clock badge */}
-          <div className="flex items-center gap-1.5 bg-muted/80 px-3 py-1.5 rounded-full border border-border/50 animate-slide-right">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-            </span>
-            <span className="text-[11px] text-muted-foreground font-medium">{dateStr}</span>
-            <span className="text-[11px] text-foreground font-bold tabular-nums">{timeStr}</span>
+          {/* Right side: clock + user menu */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-muted/80 px-3 py-1.5 rounded-full border border-border/50 animate-slide-right">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+              </span>
+              <span className="text-[11px] text-muted-foreground font-medium">{dateStr}</span>
+              <span className="text-[11px] text-foreground font-bold tabular-nums">{timeStr}</span>
+            </div>
+            <UserMenu />
           </div>
         </div>
 
