@@ -53,8 +53,8 @@ const BREAK_STYLES = [
 
 const STEPS = [
   { label: "Wake Up", icon: Sun },
-  { label: "Work Style", icon: Briefcase },
-  { label: "Peak Hours", icon: Brain },
+  { label: "Work", icon: Briefcase },
+  { label: "Peak", icon: Brain },
   { label: "Goals", icon: Target },
   { label: "Breaks", icon: Coffee },
 ];
@@ -100,18 +100,21 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-[420px]">
+    <div
+      className="min-h-screen bg-background flex flex-col items-center justify-start sm:justify-center overflow-y-auto"
+      style={{ paddingTop: "max(24px, env(safe-area-inset-top))", paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}
+    >
+      <div className="w-full max-w-[420px] px-4">
 
         {/* Step progress */}
-        <div className="flex items-center justify-between mb-6 px-1">
+        <div className="flex items-center justify-between mb-5 px-1">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
             const isDone = i < step;
             const isActive = i === step;
             return (
-              <div key={s.label} className="flex items-center">
-                <div className="flex flex-col items-center gap-1">
+              <div key={s.label} className="flex items-center flex-1 last:flex-none">
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
                       isDone
@@ -126,13 +129,13 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       : <Icon className={`w-3.5 h-3.5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                     }
                   </div>
-                  <span className={`text-[9px] font-semibold transition-colors ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`text-[9px] font-semibold transition-colors leading-none ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
                     {s.label}
                   </span>
                 </div>
                 {i < STEPS.length - 1 && (
                   <div
-                    className={`h-[2px] w-8 mx-1 mb-4 rounded-full transition-all duration-300 ${
+                    className={`h-[2px] flex-1 mx-1 mb-4 rounded-full transition-all duration-300 ${
                       i < step ? "gradient-brand" : "bg-muted"
                     }`}
                   />
@@ -144,25 +147,26 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
         {/* Card */}
         <div
-          className="bg-card rounded-2xl border border-border shadow-card p-6 animate-fade-in"
+          className="bg-card rounded-2xl border border-border shadow-card p-4 sm:p-6 animate-fade-in"
           key={step}
         >
           {/* Step 0: Wake Up */}
           {step === 0 && (
             <>
-              <div className="text-center mb-6">
+              <div className="text-center mb-5">
                 <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mx-auto mb-3">
                   <Sun className="w-6 h-6 text-primary" />
                 </div>
                 <h2 className="text-lg font-bold text-foreground mb-1">When do you wake up?</h2>
                 <p className="text-sm text-muted-foreground">We'll build your schedule around this.</p>
               </div>
-              <div className="grid grid-cols-4 gap-1.5 mb-4">
+              <div className="grid grid-cols-4 gap-2 mb-4">
                 {WAKE_PRESETS.map(p => (
                   <button
                     key={p.value}
                     onClick={() => setData(prev => ({ ...prev, wakeUpTime: p.value }))}
-                    className={`py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                    style={{ touchAction: "manipulation" }}
+                    className={`py-3 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${
                       data.wakeUpTime === p.value
                         ? "gradient-brand text-white shadow-card font-bold"
                         : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
@@ -181,7 +185,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 type="time"
                 value={data.wakeUpTime}
                 onChange={e => setData(prev => ({ ...prev, wakeUpTime: e.target.value }))}
-                className="w-full h-11 rounded-xl border border-input bg-background px-4 text-base font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-ring/50 mb-3"
+                className="w-full h-12 rounded-xl border border-input bg-background px-4 text-base font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-ring/50 mb-3"
               />
               <p className="text-center text-xs text-muted-foreground">
                 Day starts at <span className="font-bold text-foreground">{formatDisplay(data.wakeUpTime)}</span>
@@ -199,23 +203,22 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <h2 className="text-lg font-bold text-foreground mb-1">How do you work?</h2>
                 <p className="text-sm text-muted-foreground">This shapes how we structure your blocks.</p>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {WORK_TYPES.map(w => (
                   <button
                     key={w.value}
                     onClick={() => setData(prev => ({ ...prev, workType: w.value }))}
-                    className={`w-full text-left p-3.5 rounded-xl transition-all duration-200 flex items-center gap-3 border ${
+                    style={{ touchAction: "manipulation" }}
+                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center gap-3 border active:scale-[0.99] ${
                       data.workType === w.value
                         ? "border-primary/30 bg-primary/5 shadow-card"
                         : "border-border bg-background hover:border-border hover:bg-muted/30"
                     }`}
                   >
-                    <span className="text-xl flex-shrink-0">{w.icon}</span>
+                    <span className="text-2xl flex-shrink-0">{w.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <div className={`font-semibold text-sm ${data.workType === w.value ? "text-foreground" : "text-foreground"}`}>
-                        {w.label}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{w.desc}</div>
+                      <div className="font-semibold text-sm text-foreground">{w.label}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{w.desc}</div>
                     </div>
                     {data.workType === w.value && (
                       <div className="w-5 h-5 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
@@ -238,12 +241,13 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <h2 className="text-lg font-bold text-foreground mb-1">When are you most productive?</h2>
                 <p className="text-sm text-muted-foreground">We'll schedule hard work during peak hours.</p>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {PRODUCTIVITY_TYPES.map(p => (
                   <button
                     key={p.value}
                     onClick={() => setData(prev => ({ ...prev, productivity: p.value }))}
-                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center gap-3.5 border ${
+                    style={{ touchAction: "manipulation" }}
+                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center gap-3.5 border active:scale-[0.99] ${
                       data.productivity === p.value
                         ? "border-primary/30 bg-primary/5 shadow-card"
                         : "border-border bg-background hover:border-border hover:bg-muted/30"
@@ -252,7 +256,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     <span className="text-2xl flex-shrink-0">{p.icon}</span>
                     <div className="flex-1">
                       <div className="font-semibold text-sm text-foreground">{p.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{p.desc}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{p.desc}</div>
                     </div>
                     {data.productivity === p.value && (
                       <div className="w-5 h-5 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
@@ -275,25 +279,24 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <h2 className="text-lg font-bold text-foreground mb-1">What are your main goals?</h2>
                 <p className="text-sm text-muted-foreground">Select all that apply.</p>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {GOAL_OPTIONS.map(g => {
                   const isSelected = data.goals.includes(g.value);
                   return (
                     <button
                       key={g.value}
                       onClick={() => toggleGoal(g.value)}
-                      className={`p-3.5 rounded-xl transition-all duration-200 text-left flex items-start gap-2.5 border ${
+                      style={{ touchAction: "manipulation" }}
+                      className={`p-3.5 rounded-xl transition-all duration-200 text-left flex items-center gap-2.5 border active:scale-95 ${
                         isSelected
                           ? "border-primary/30 bg-primary/5 shadow-card"
                           : "border-border bg-background hover:bg-muted/30"
                       }`}
                     >
-                      <span className="text-lg flex-shrink-0 mt-0.5">{g.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-semibold text-foreground leading-snug">{g.label}</span>
-                      </div>
+                      <span className="text-xl flex-shrink-0">{g.icon}</span>
+                      <span className="text-xs font-semibold text-foreground leading-snug flex-1 min-w-0">{g.label}</span>
                       {isSelected && (
-                        <div className="w-4 h-4 rounded-full gradient-brand flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-4 h-4 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
                           <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
                         </div>
                       )}
@@ -319,21 +322,22 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <h2 className="text-lg font-bold text-foreground mb-1">How do you like your breaks?</h2>
                 <p className="text-sm text-muted-foreground">We'll space rest time accordingly.</p>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {BREAK_STYLES.map(b => (
                   <button
                     key={b.value}
                     onClick={() => setData(prev => ({ ...prev, breakStyle: b.value }))}
-                    className={`w-full text-left p-3.5 rounded-xl transition-all duration-200 flex items-center gap-3 border ${
+                    style={{ touchAction: "manipulation" }}
+                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center gap-3 border active:scale-[0.99] ${
                       data.breakStyle === b.value
                         ? "border-primary/30 bg-primary/5 shadow-card"
                         : "border-border bg-background hover:border-border hover:bg-muted/30"
                     }`}
                   >
-                    <span className="text-xl flex-shrink-0">{b.icon}</span>
+                    <span className="text-2xl flex-shrink-0">{b.icon}</span>
                     <div className="flex-1">
                       <div className="font-semibold text-sm text-foreground">{b.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{b.desc}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{b.desc}</div>
                     </div>
                     {data.breakStyle === b.value && (
                       <div className="w-5 h-5 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
@@ -352,7 +356,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
               <Button
                 variant="outline"
                 onClick={back}
-                className="h-11 px-5 gap-2 font-semibold rounded-xl text-sm"
+                style={{ touchAction: "manipulation" }}
+                className="h-12 px-5 gap-2 font-semibold rounded-xl text-sm active:scale-95"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -361,7 +366,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             <Button
               onClick={next}
               disabled={!canProceed()}
-              className={`flex-1 h-11 gradient-brand text-white font-bold text-sm gap-2 border-0 rounded-xl transition-opacity ${
+              style={{ touchAction: "manipulation" }}
+              className={`flex-1 h-12 gradient-brand text-white font-bold text-sm gap-2 border-0 rounded-xl transition-opacity active:scale-[0.98] ${
                 !canProceed() ? "opacity-50 cursor-not-allowed" : ""
               }`}
             >
@@ -380,10 +386,6 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           </div>
         </div>
 
-        <p className="text-center text-[11px] text-muted-foreground mt-5">
-          <span className="font-semibold text-foreground">ZIP Solutions</span>
-          {" "}— The Art of Hospitality
-        </p>
       </div>
     </div>
   );
