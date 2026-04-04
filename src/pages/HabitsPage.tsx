@@ -134,14 +134,24 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg mx-auto bg-background border border-border/60 rounded-t-2xl p-5 pb-8">
-        <div className="flex items-center justify-between mb-4">
+      <div className="relative w-full max-w-lg mx-auto bg-background border border-border/60 rounded-t-2xl flex flex-col"
+        style={{ maxHeight: "90dvh" }}>
+
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-muted-foreground/20" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
           <h3 className="text-base font-bold text-foreground">New Habit</h3>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 px-5 pb-2">
         <div className="space-y-3">
           <input
             autoFocus
@@ -192,6 +202,11 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
             </div>
           </div>
 
+        </div>
+        </div>
+
+        {/* Sticky footer button */}
+        <div className="flex-shrink-0 px-5 pt-3 pb-6 border-t border-border/30">
           <button
             disabled={!title.trim()}
             onClick={() => {
@@ -199,7 +214,7 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
               onAdd({ title: title.trim(), description: desc || null, color, icon, target_count: 1, frequency: "daily" });
               onClose();
             }}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold gradient-brand text-white disabled:opacity-40 transition-all"
+            className="w-full py-3 rounded-xl text-sm font-semibold gradient-brand text-white disabled:opacity-40 transition-all active:scale-[0.98]"
           >
             Add Habit
           </button>
