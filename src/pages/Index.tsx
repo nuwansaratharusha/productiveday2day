@@ -24,6 +24,22 @@ import {
 import { generateSmartSchedule } from "@/lib/smartScheduleGenerator";
 import { recalculateTimes } from "@/lib/scheduleGenerator";
 
+// ─── Skeleton block loader ──────────────────────────────────
+function BlockSkeleton() {
+  return (
+    <div className="rounded-xl border border-border/40 bg-card/40 p-3.5 mb-2 animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="w-4 h-4 rounded-full bg-muted/60 flex-shrink-0" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-3.5 bg-muted/60 rounded w-2/5" />
+          <div className="h-3 bg-muted/40 rounded w-1/4" />
+        </div>
+        <div className="h-3 bg-muted/40 rounded w-12" />
+      </div>
+    </div>
+  );
+}
+
 export default function Index() {
   const today = new Date().getDay();
   const defaultDay = today === 0 ? 6 : today - 1;
@@ -47,7 +63,7 @@ export default function Index() {
     bulkCreate,
   } = usePlannerBlocks();
 
-  // Onboarded = has blocks in Supabase (checked after first load)
+  // Onboarded = has blocks in Supabase (resolved after first data load)
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -75,13 +91,12 @@ export default function Index() {
   );
 
   const handleResetOnboarding = useCallback(async () => {
-    // Clear all planner blocks from Supabase
     await saveBlocks([], "weekday");
     await saveBlocks([], "weekend");
     setOnboarded(false);
   }, [saveBlocks]);
 
-  // ── Category management ─────────────────────────────────────
+  // ── Categories ──────────────────────────────────────────────
   const handleCategorySave = (cats: Record<string, Category>) => {
     setCategoriesState(cats);
     saveCategories(cats);
@@ -97,9 +112,7 @@ export default function Index() {
 
   // ── Block mutations ─────────────────────────────────────────
   const updateBlocks = useCallback(
-    (newBlocks: TimeBlockData[]) => {
-      saveBlocks(newBlocks, dayType);
-    },
+    (newBlocks: TimeBlockData[]) => saveBlocks(newBlocks, dayType),
     [saveBlocks, dayType]
   );
 
@@ -133,34 +146,22 @@ export default function Index() {
         b.id === data.id ? ({ ...b, ...data } as TimeBlockData) : b
       );
     } else {
-      const newBlock: TimeBlockData = {
-        ...data,
-        id: `block-${Date.now()}`,
-      } as TimeBlockData;
+      const newBlock: TimeBlockData = { ...data, id: `block-${Date.now()}` } as TimeBlockData;
       newBlocks = [...blocks, newBlock];
     }
     updateBlocks(recalculateTimes(newBlocks));
   };
 
   const handleDelete = (id: string) => {
-    const newBlocks = blocks.filter((b) => b.id !== id);
-    updateBlocks(recalculateTimes(newBlocks));
+    updateBlocks(recalculateTimes(blocks.filter((b) => b.id !== id)));
   };
 
-  // ── Loading / onboarding gate ───────────────────────────────
-  if (onboarded === null) {
-    // First render while we wait for Supabase
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  if (!onboarded) {
+  // ── Onboarding gate ─────────────────────────────────────────
+  if (onboarded === false) {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
+  // ── Main layout (shows skeleton while loading) ──────────────
   return (
     <div className="min-h-screen bg-background">
       <PlannerHeader
@@ -173,22 +174,38 @@ export default function Index() {
       <MigrationBanner />
 
       <div className="max-w-2xl mx-auto px-4 pt-5 pb-12">
-        <StatsBar blocks={blocks} completed={completed} categories={categories} />
+        {/* Stats bar — show skeleton placeholders while loading */}
+        {loading ? (
+          <div className="rounded-xl border border-border/40 bg-card/30 p-3 mb-5 animate-pulse">
+            <div className="flex gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex-1 space-y-1">
+                  <div className="h-5 bg-muted/60 rounded w-8" />
+                  <div className="h-3 bg-muted/40 rounded w-14" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <StatsBar blocks={blocks} completed={completed} categories={categories} />
+        )}
 
-        {isBreakActive && activeBlock && (
+        {!loading && isBreakActive && activeBlock && (
           <BreakSuggestionCard blockName={activeBlock.block} />
         )}
 
-        {/* Schedule section header */}
+        {/* Schedule header */}
         <div className="flex justify-between items-center mb-3 px-0.5">
           <div>
             <span className="text-[12px] font-bold text-foreground">
               {isWeekend ? "Weekend" : "Weekday"} — {DAYS[selectedDay]}
             </span>
-            <span className="text-[11px] text-muted-foreground ml-2">
-              {blocks.length} blocks ·{" "}
-              {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
-            </span>
+            {!loading && (
+              <span className="text-[11px] text-muted-foreground ml-2">
+                {blocks.length} blocks ·{" "}
+                {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -223,41 +240,50 @@ export default function Index() {
           </div>
         </div>
 
-        <div ref={containerRef}>
-          {blocks.map((block, i) => (
-            <TimeBlock
-              key={block.id}
-              block={block}
-              index={i}
-              isActive={i === activeIndex}
-              completed={!!completed[block.id]}
-              isDragging={dragState.dragIndex === i}
-              isDropTarget={dragState.dropIndex === i}
-              dropPosition={dragState.dropIndex === i ? dragState.dropPosition : null}
-              onToggle={() => toggleComplete(block.id)}
-              onEdit={() => {
-                setEditingBlock(block);
-                setDialogOpen(true);
-              }}
-              onDelete={() => handleDelete(block.id)}
-              onDragStart={handleDragStart(i)}
-              onDragEnd={handleDragEnd}
-              onDragOver={handleDragOver(i)}
-              onDragLeave={handleDragLeave(i)}
-              onDrop={handleDrop(i)}
-              onTouchStart={handleTouchStart(i)}
-              onTouchMove={handleTouchMove(i)}
-              onTouchEnd={handleTouchEnd(i)}
-              categories={categories}
-            />
-          ))}
-        </div>
+        {/* Block list — skeleton while loading */}
+        {loading ? (
+          <>
+            {[1, 2, 3, 4, 5].map((i) => <BlockSkeleton key={i} />)}
+          </>
+        ) : (
+          <div ref={containerRef}>
+            {blocks.map((block, i) => (
+              <TimeBlock
+                key={block.id}
+                block={block}
+                index={i}
+                isActive={i === activeIndex}
+                completed={!!completed[block.id]}
+                isDragging={dragState.dragIndex === i}
+                isDropTarget={dragState.dropIndex === i}
+                dropPosition={dragState.dropIndex === i ? dragState.dropPosition : null}
+                onToggle={() => toggleComplete(block.id)}
+                onEdit={() => {
+                  setEditingBlock(block);
+                  setDialogOpen(true);
+                }}
+                onDelete={() => handleDelete(block.id)}
+                onDragStart={handleDragStart(i)}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver(i)}
+                onDragLeave={handleDragLeave(i)}
+                onDrop={handleDrop(i)}
+                onTouchStart={handleTouchStart(i)}
+                onTouchMove={handleTouchMove(i)}
+                onTouchEnd={handleTouchEnd(i)}
+                categories={categories}
+              />
+            ))}
+          </div>
+        )}
 
-        <DayActionsBar
-          blocks={blocks}
-          completed={completed}
-          selectedDay={selectedDay}
-        />
+        {!loading && (
+          <DayActionsBar
+            blocks={blocks}
+            completed={completed}
+            selectedDay={selectedDay}
+          />
+        )}
       </div>
 
       <BlockDialog

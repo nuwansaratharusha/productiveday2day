@@ -1,29 +1,21 @@
 // =============================================================
 // ProductiveDay — Planner Blocks Hook (Supabase-backed)
 // =============================================================
-// Replaces the localStorage-based block storage in Index.tsx
-// with Supabase persisted tasks.
-//
+// Uses useAuth() context — no duplicate getUser() network calls.
 // Encoding convention (stored in `tags` column):
-//   tags[0] = dayType  → "weekday" | "weekend"
-//   tags[1] = timeStr  → "9:00 AM – 10:00 AM"
-//   tags[2] = category → "Personal"
-//
-// Other mappings:
-//   title              → block.block  (display name)
-//   description        → block.desc
-//   estimated_minutes  → block.dur    (minutes)
-//   sort_order         → array index
-//   status             → "done" | "todo"
-//   completed_at       → ISO string if done TODAY (checked on load)
+//   tags[0] = "planner-block"  (sentinel)
+//   tags[1] = dayType          → "weekday" | "weekend"
+//   tags[2] = timeStr          → "9:00 AM – 10:00 AM"
+//   tags[3] = category         → "Personal"
 // =============================================================
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/auth/AuthProvider";
 import type { TimeBlockData } from "@/data/plannerData";
 import type { TaskInsert } from "@/lib/types/database";
 
-const PLANNER_TAG = "planner-block"; // sentinel tag to distinguish planner tasks
+const PLANNER_TAG = "planner-block";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -42,7 +34,6 @@ function isUUID(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
-/** Convert a Supabase task row → TimeBlockData */
 function taskToBlock(task: {
   id: string;
   title: string;
@@ -51,7 +42,6 @@ function taskToBlock(task: {
   tags: string[];
   status: string;
   completed_at: string | null;
-  sort_order: number;
 }): TimeBlockData {
   const tags = task.tags || [];
   return {
@@ -59,13 +49,17 @@ function taskToBlock(task: {
     block: task.title,
     desc: task.description || "",
     dur: task.estimated_minutes || 30,
-    time: tags[1] || "",
-    cat: tags[2] || "Personal",
+    time: tags[2] || "",
+    cat: tags[3] || "Personal",
   };
 }
 
-/** Convert TimeBlockData + dayType → TaskInsert (for new rows) */
-function blockToInsert(block: TimeBlockData, dayType: "weekday" | "weekend", index: number): TaskInsert {
+function blockToInsert(
+  block: TimeBlockData,
+  dayType: "weekday" | "weekend",
+  index: number,
+  userId: string
+): TaskInsert & { user_id: string } {
   return {
     title: block.block,
     description: block.desc || null,
@@ -73,6 +67,7 @@ function blockToInsert(block: TimeBlockData, dayType: "weekday" | "weekend", ind
     tags: [PLANNER_TAG, dayType, block.time, block.cat],
     sort_order: index,
     status: "todo",
+    user_id: userId,
   };
 }
 
@@ -89,7 +84,11 @@ export interface UsePlannerBlocksReturn {
 }
 
 export function usePlannerBlocks(): UsePlannerBlocksReturn {
-  const supabase = createClient();
+  // Use auth context — no extra network request
+  const { user } = useAuth();
+
+  // Single supabase client instance
+  const supabase = useMemo(() => createClient(), []);
 
   const [allBlocks, setAllBlocks] = useState<{ weekday: TimeBlockData[]; weekend: TimeBlockData[] }>(
     { weekday: [], weekend: [] }
@@ -97,15 +96,13 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
   const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
-  // Track Supabase row IDs per dayType to detect inserts vs updates
   const rowIds = useRef<{ weekday: Set<string>; weekend: Set<string> }>({
     weekday: new Set(),
     weekend: new Set(),
   });
 
-  // ── Fetch all planner blocks from Supabase ─────────────────
+  // ── Fetch ──────────────────────────────────────────────────
   const fetchBlocks = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
     const { data, error } = await supabase
@@ -135,7 +132,6 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
         newRowIds.weekday.add(task.id);
       }
 
-      // Mark as completed if status=done AND completed_at is today
       if (task.status === "done" && isToday(task.completed_at)) {
         completedMap[task.id] = true;
       }
@@ -145,28 +141,34 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
     setAllBlocks({ weekday: weekdayBlocks, weekend: weekendBlocks });
     setCompleted(completedMap);
     setLoading(false);
-  }, [supabase]);
+  }, [user, supabase]);
 
-  // ── Realtime subscription ──────────────────────────────────
+  // Fetch when user becomes available
   useEffect(() => {
-    fetchBlocks();
+    if (user) {
+      fetchBlocks();
+    } else {
+      setLoading(false);
+    }
+  }, [user, fetchBlocks]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!user) return;
 
     const channel = supabase
-      .channel("planner-blocks")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tasks" },
-        () => fetchBlocks()
-      )
+      .channel(`planner-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
+        fetchBlocks();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchBlocks, supabase]);
+  }, [user, supabase, fetchBlocks]);
 
-  // ── saveBlocks — full sync for one day type ────────────────
+  // ── saveBlocks ─────────────────────────────────────────────
   const saveBlocks = useCallback(
     async (newBlocks: TimeBlockData[], dayType: "weekday" | "weekend") => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       // Optimistic update
@@ -175,18 +177,15 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
       const existingIds = rowIds.current[dayType];
       const incomingUUIDs = newBlocks.filter((b) => isUUID(b.id)).map((b) => b.id);
 
-      // 1. Delete rows that no longer exist
+      // Delete removed rows
       const toDelete = [...existingIds].filter((id) => !incomingUUIDs.includes(id));
       if (toDelete.length > 0) {
         await supabase.from("tasks").delete().in("id", toDelete).eq("user_id", user.id);
       }
 
-      // 2. Upsert each block
-      for (let i = 0; i < newBlocks.length; i++) {
-        const block = newBlocks[i];
-
+      // Upsert each block
+      const promises = newBlocks.map(async (block, i) => {
         if (isUUID(block.id)) {
-          // Update existing row
           await supabase
             .from("tasks")
             .update({
@@ -199,41 +198,42 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
             .eq("id", block.id)
             .eq("user_id", user.id);
         } else {
-          // Insert new row (temp ID like "block-1234567")
           const { data: inserted } = await supabase
             .from("tasks")
-            .insert({ ...blockToInsert(block, dayType, i), user_id: user.id })
+            .insert(blockToInsert(block, dayType, i, user.id))
             .select("id")
             .single();
 
-          // Swap temp ID → real UUID in local state
           if (inserted?.id) {
+            const tempId = block.id;
+            const realId = inserted.id;
             setAllBlocks((prev) => ({
               ...prev,
               [dayType]: prev[dayType].map((b) =>
-                b.id === block.id ? { ...b, id: inserted.id } : b
+                b.id === tempId ? { ...b, id: realId } : b
               ),
             }));
-            rowIds.current[dayType].add(inserted.id);
+            rowIds.current[dayType].add(realId);
           }
         }
-      }
+      });
 
-      // Refresh row ID registry
-      rowIds.current[dayType] = new Set(incomingUUIDs);
+      await Promise.all(promises);
+      rowIds.current[dayType] = new Set(
+        newBlocks.filter((b) => isUUID(b.id)).map((b) => b.id)
+      );
     },
-    [supabase]
+    [user, supabase]
   );
 
   // ── toggleComplete ─────────────────────────────────────────
   const toggleComplete = useCallback(
     async (blockId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const currentlyDone = !!completed[blockId];
 
-      // Optimistic update
+      // Optimistic update — instant UI response
       setCompleted((prev) => ({ ...prev, [blockId]: !currentlyDone }));
 
       if (isUUID(blockId)) {
@@ -247,27 +247,19 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
           .eq("user_id", user.id);
       }
     },
-    [supabase, completed]
+    [user, supabase, completed]
   );
 
-  // ── bulkCreate — for onboarding schedule ──────────────────
+  // ── bulkCreate ─────────────────────────────────────────────
   const bulkCreate = useCallback(
     async (schedule: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }) => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Optimistic update
       setAllBlocks(schedule);
 
-      const allInserts: (TaskInsert & { user_id: string })[] = [
-        ...schedule.weekday.map((b, i) => ({
-          ...blockToInsert(b, "weekday", i),
-          user_id: user.id,
-        })),
-        ...schedule.weekend.map((b, i) => ({
-          ...blockToInsert(b, "weekend", i),
-          user_id: user.id,
-        })),
+      const allInserts = [
+        ...schedule.weekday.map((b, i) => blockToInsert(b, "weekday", i, user.id)),
+        ...schedule.weekend.map((b, i) => blockToInsert(b, "weekend", i, user.id)),
       ];
 
       if (allInserts.length === 0) return;
@@ -277,7 +269,6 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
         .insert(allInserts)
         .select("id, tags, sort_order");
 
-      // Rebuild with real UUIDs
       if (inserted) {
         const weekdayBlocks: TimeBlockData[] = [];
         const weekendBlocks: TimeBlockData[] = [];
@@ -285,19 +276,14 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
         for (const row of inserted) {
           const tags: string[] = row.tags || [];
           const dayType = tags[1];
-          // Find matching schedule block by sort_order
           const src =
             dayType === "weekend"
               ? schedule.weekend[row.sort_order]
               : schedule.weekday[row.sort_order];
           if (!src) continue;
-
           const block: TimeBlockData = { ...src, id: row.id };
-          if (dayType === "weekend") {
-            weekendBlocks.push(block);
-          } else {
-            weekdayBlocks.push(block);
-          }
+          if (dayType === "weekend") weekendBlocks.push(block);
+          else weekdayBlocks.push(block);
         }
 
         setAllBlocks({ weekday: weekdayBlocks, weekend: weekendBlocks });
@@ -305,11 +291,10 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
         rowIds.current.weekend = new Set(weekendBlocks.map((b) => b.id));
       }
     },
-    [supabase]
+    [user, supabase]
   );
 
-  const hasBlocks =
-    allBlocks.weekday.length > 0 || allBlocks.weekend.length > 0;
+  const hasBlocks = allBlocks.weekday.length > 0 || allBlocks.weekend.length > 0;
 
   return { allBlocks, completed, hasBlocks, loading, saveBlocks, toggleComplete, bulkCreate };
 }
