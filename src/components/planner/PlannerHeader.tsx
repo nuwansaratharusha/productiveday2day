@@ -42,7 +42,7 @@ export function PlannerHeader({ selectedDay, defaultDay, time, onSelectDay }: Pl
 
   return (
     <header className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border/50">
-      <div className="max-w-2xl mx-auto px-4 pt-4 pb-0">
+      <div className="max-w-2xl mx-auto px-4 pt-4 pb-3">
 
         {/* Top row: greeting + time + user */}
         <div className="flex items-center justify-between mb-4">
@@ -80,7 +80,7 @@ export function PlannerHeader({ selectedDay, defaultDay, time, onSelectDay }: Pl
                 key={i}
                 onClick={() => onSelectDay(i)}
                 className={[
-                  "flex-1 flex flex-col items-center py-1.5 rounded-[10px] transition-all duration-200 relative",
+                  "flex-1 flex flex-col items-center py-2.5 rounded-[10px] transition-all duration-200 relative",
                   isSelected
                     ? "bg-card shadow-sm"
                     : "hover:bg-card/50",
