@@ -1,92 +1,202 @@
 import { useState } from "react";
-import { Sun, Briefcase, Brain, Target, Coffee, ArrowRight, ArrowLeft, Sparkles, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Sun, Target, Coffee, ArrowRight, ArrowLeft, Check, Briefcase, Zap } from "lucide-react";
+
+// ─── Data types ───────────────────────────────────────────────
+export type Profession = "student" | "employee" | "entrepreneur" | "creator" | "freelancer" | "developer";
+export type WorkHours  = "early" | "standard" | "flexible" | "night";
+export type Productivity = "morning" | "afternoon" | "evening";
+export type WorkType = "deep" | "meetings" | "mixed";
+export type BreakStyle = "short" | "long" | "frequent";
 
 export interface OnboardingData {
-  wakeUpTime: string;
-  workType: "deep" | "meetings" | "mixed";
-  productivity: "morning" | "evening";
-  goals: string[];
-  breakStyle: "short" | "long" | "frequent";
+  profession:   Profession;
+  industry:     string;
+  wakeUpTime:   string;
+  workHours:    WorkHours;
+  productivity: Productivity;
+  goals:        string[];
+  breakStyle:   BreakStyle;
+  workType:     WorkType;
 }
 
 interface OnboardingWizardProps {
   onComplete: (data: OnboardingData) => void;
 }
 
+// ─── Step content definitions ─────────────────────────────────
+
+const PROFESSIONS: { value: Profession; label: string; desc: string; icon: string }[] = [
+  { value: "student",       label: "Student",             desc: "Courses, assignments, exams & learning",     icon: "🎓" },
+  { value: "employee",      label: "Professional",        desc: "9-to-5, team meetings, corporate work",      icon: "💼" },
+  { value: "entrepreneur",  label: "Entrepreneur",        desc: "Building a business, revenue, growth",       icon: "🚀" },
+  { value: "creator",       label: "Content Creator",     desc: "Videos, posts, brand deals, audience",       icon: "🎬" },
+  { value: "freelancer",    label: "Freelancer",          desc: "Client projects, proposals, billing",        icon: "🎨" },
+  { value: "developer",     label: "Developer / Engineer",desc: "Coding, PRs, architecture, shipping",        icon: "💻" },
+];
+
+const INDUSTRIES: Record<Profession, { value: string; label: string; icon: string }[]> = {
+  student: [
+    { value: "stem",         label: "STEM / Sciences",          icon: "🔬" },
+    { value: "business_edu", label: "Business / Economics",     icon: "📊" },
+    { value: "arts",         label: "Arts & Humanities",        icon: "🎭" },
+    { value: "medicine",     label: "Medicine / Health",        icon: "🏥" },
+    { value: "law",          label: "Law",                      icon: "⚖️" },
+    { value: "other_edu",    label: "Other",                    icon: "📚" },
+  ],
+  employee: [
+    { value: "tech",         label: "Technology",               icon: "💻" },
+    { value: "finance",      label: "Finance & Banking",        icon: "🏦" },
+    { value: "marketing",    label: "Marketing & Sales",        icon: "📣" },
+    { value: "healthcare",   label: "Healthcare",               icon: "🏥" },
+    { value: "consulting",   label: "Consulting",               icon: "🤝" },
+    { value: "other_emp",    label: "Other",                    icon: "🏢" },
+  ],
+  entrepreneur: [
+    { value: "saas",         label: "SaaS / Tech Startup",      icon: "⚡" },
+    { value: "ecommerce",    label: "E-commerce / Retail",      icon: "🛒" },
+    { value: "agency",       label: "Agency / Services",        icon: "🏢" },
+    { value: "hospitality",  label: "Hospitality / F&B",        icon: "🍽️" },
+    { value: "real_estate",  label: "Real Estate",              icon: "🏠" },
+    { value: "other_ent",    label: "Other",                    icon: "🚀" },
+  ],
+  creator: [
+    { value: "youtube",      label: "YouTube / Video",          icon: "📹" },
+    { value: "instagram",    label: "Instagram / TikTok",       icon: "📸" },
+    { value: "podcast",      label: "Podcast / Audio",          icon: "🎙️" },
+    { value: "writing",      label: "Blog / Newsletter",        icon: "✍️" },
+    { value: "music",        label: "Music / Production",       icon: "🎵" },
+    { value: "other_cr",     label: "Other",                    icon: "🎬" },
+  ],
+  freelancer: [
+    { value: "design_fl",    label: "Graphic / UI Design",      icon: "🎨" },
+    { value: "dev_fl",       label: "Web / App Development",    icon: "💻" },
+    { value: "copy",         label: "Copywriting / Content",    icon: "✍️" },
+    { value: "video_fl",     label: "Video / Photography",      icon: "📹" },
+    { value: "consult_fl",   label: "Consulting / Coaching",    icon: "🤝" },
+    { value: "other_fl",     label: "Other",                    icon: "🎨" },
+  ],
+  developer: [
+    { value: "frontend",     label: "Frontend / Mobile",        icon: "🖥️" },
+    { value: "backend",      label: "Backend / APIs",           icon: "⚙️" },
+    { value: "fullstack",    label: "Full-Stack",               icon: "💻" },
+    { value: "devops",       label: "DevOps / Cloud",           icon: "☁️" },
+    { value: "ai_ml",        label: "AI / ML / Data",           icon: "🤖" },
+    { value: "other_dev",    label: "Other",                    icon: "💻" },
+  ],
+};
+
 const WAKE_PRESETS = [
-  { label: "5:00 AM", value: "05:00" },
-  { label: "5:30 AM", value: "05:30" },
-  { label: "6:00 AM", value: "06:00" },
-  { label: "6:30 AM", value: "06:30" },
-  { label: "7:00 AM", value: "07:00" },
-  { label: "7:30 AM", value: "07:30" },
-  { label: "8:00 AM", value: "08:00" },
-  { label: "8:30 AM", value: "08:30" },
+  "05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30",
 ];
 
-const WORK_TYPES = [
-  { value: "deep" as const, label: "Deep Work", desc: "Long focused sessions, minimal interruptions", icon: "🧠" },
-  { value: "meetings" as const, label: "Meetings Heavy", desc: "Lots of calls, client sessions, outreach", icon: "📞" },
-  { value: "mixed" as const, label: "Mixed", desc: "Balance of focused work and collaborative time", icon: "⚡" },
+const WORK_HOURS_OPTIONS: { value: WorkHours; label: string; desc: string; icon: string }[] = [
+  { value: "early",    label: "Early Bird",   desc: "Work starts around 7–8 AM",   icon: "🌅" },
+  { value: "standard", label: "Standard",     desc: "9 AM – 5 PM typical day",     icon: "☀️" },
+  { value: "flexible", label: "Flexible",     desc: "Start around 10–11 AM",       icon: "🕙" },
+  { value: "night",    label: "Night Shift",  desc: "Afternoon to evening focus",  icon: "🌙" },
 ];
 
-const PRODUCTIVITY_TYPES = [
-  { value: "morning" as const, label: "Morning Person", desc: "Peak focus before noon", icon: "🌅" },
-  { value: "evening" as const, label: "Night Owl", desc: "Best work in the afternoon / evening", icon: "🌙" },
+const PRODUCTIVITY_OPTS: { value: Productivity; label: string; desc: string; icon: string }[] = [
+  { value: "morning",   label: "Morning",   desc: "Best before noon",            icon: "🌅" },
+  { value: "afternoon", label: "Afternoon", desc: "Peak energy 1–5 PM",          icon: "☀️" },
+  { value: "evening",   label: "Evening",   desc: "Hit stride after 6 PM",       icon: "🌆" },
+];
+
+const WORK_TYPES: { value: WorkType; label: string; desc: string; icon: string }[] = [
+  { value: "deep",     label: "Deep Work",     desc: "Long focused sessions, no interruptions",   icon: "🧠" },
+  { value: "meetings", label: "Meeting Heavy", desc: "Lots of calls, client sessions, standups",  icon: "📞" },
+  { value: "mixed",    label: "Mixed",         desc: "Balance of focus and collaborative time",   icon: "⚡" },
 ];
 
 const GOAL_OPTIONS = [
-  { value: "business", label: "Business Growth", icon: "💼" },
-  { value: "study", label: "Study & Learning", icon: "📚" },
-  { value: "personal", label: "Personal Growth", icon: "🌱" },
-  { value: "health", label: "Health & Fitness", icon: "💪" },
-  { value: "creative", label: "Creative Projects", icon: "🎨" },
-  { value: "networking", label: "Networking", icon: "🤝" },
+  { value: "revenue",    label: "Revenue Growth",     icon: "💰" },
+  { value: "study",      label: "Study & Learning",   icon: "📚" },
+  { value: "health",     label: "Health & Fitness",   icon: "💪" },
+  { value: "creative",   label: "Creative Projects",  icon: "🎨" },
+  { value: "networking", label: "Networking",         icon: "🤝" },
+  { value: "personal",   label: "Personal Growth",    icon: "🌱" },
+  { value: "launch",     label: "Launch Something",   icon: "🚀" },
+  { value: "mindset",    label: "Mindset & Wellness", icon: "🧘" },
 ];
 
-const BREAK_STYLES = [
-  { value: "short" as const, label: "Short & Sweet", desc: "15-min breaks, stay in the zone", icon: "⚡" },
-  { value: "long" as const, label: "Deep Rest", desc: "30–45 min breaks, full recharge", icon: "🧘" },
-  { value: "frequent" as const, label: "Frequent Micro", desc: "10-min breaks every hour", icon: "🔄" },
+const BREAK_STYLES: { value: BreakStyle; label: string; desc: string; icon: string }[] = [
+  { value: "short",    label: "Short & Sharp",  desc: "15-min breaks every 2 sessions",    icon: "⚡" },
+  { value: "long",     label: "Deep Rest",      desc: "30-min breaks to fully recharge",   icon: "🧘" },
+  { value: "frequent", label: "Micro Breaks",   desc: "10-min breather every session",     icon: "🔄" },
 ];
 
 const STEPS = [
-  { label: "Wake Up", icon: Sun },
-  { label: "Work", icon: Briefcase },
-  { label: "Peak", icon: Brain },
-  { label: "Goals", icon: Target },
-  { label: "Breaks", icon: Coffee },
+  { label: "Role",     icon: Briefcase },
+  { label: "Field",    icon: Target },
+  { label: "Schedule", icon: Sun },
+  { label: "Peak",     icon: Zap },
+  { label: "Goals",    icon: Target },
+  { label: "Breaks",   icon: Coffee },
 ];
 
+// ─── Helper ───────────────────────────────────────────────────
+function fmt12(val: string) {
+  const [h, m] = val.split(":").map(Number);
+  const p = h >= 12 ? "PM" : "AM";
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m.toString().padStart(2, "0")} ${p}`;
+}
+
+// ─── Reusable card option ─────────────────────────────────────
+function OptionCard({
+  selected, onClick, icon, label, desc, small,
+}: {
+  selected: boolean; onClick: () => void;
+  icon: string; label: string; desc?: string; small?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{ touchAction: "manipulation" }}
+      className={[
+        "w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.98] flex items-center gap-3",
+        small ? "p-3" : "p-4",
+        selected
+          ? "border-primary/40 bg-primary/5 shadow-sm"
+          : "border-border bg-background hover:bg-muted/30",
+      ].join(" ")}
+    >
+      <span className={small ? "text-xl flex-shrink-0" : "text-2xl flex-shrink-0"}>{icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className={["font-semibold text-foreground leading-snug", small ? "text-xs" : "text-sm"].join(" ")}>
+          {label}
+        </div>
+        {desc && <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{desc}</div>}
+      </div>
+      {selected && (
+        <div className="w-5 h-5 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
+          <Check className="w-3 h-3 text-white" strokeWidth={3} />
+        </div>
+      )}
+    </button>
+  );
+}
+
+// ─── Main wizard ──────────────────────────────────────────────
 export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>({
-    wakeUpTime: "06:00",
-    workType: "mixed",
+    profession:   "employee",
+    industry:     "",
+    wakeUpTime:   "07:00",
+    workHours:    "standard",
     productivity: "morning",
-    goals: ["business"],
-    breakStyle: "short",
+    goals:        [],
+    breakStyle:   "short",
+    workType:     "mixed",
   });
 
-  const formatDisplay = (val: string) => {
-    const [h, m] = val.split(":").map(Number);
-    const period = h >= 12 ? "PM" : "AM";
-    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${h12}:${m.toString().padStart(2, "0")} ${period}`;
-  };
-
-  const toggleGoal = (goal: string) => {
-    setData(prev => ({
-      ...prev,
-      goals: prev.goals.includes(goal)
-        ? prev.goals.filter(g => g !== goal)
-        : [...prev.goals, goal],
-    }));
-  };
+  const toggleGoal = (g: string) =>
+    setData(p => ({ ...p, goals: p.goals.includes(g) ? p.goals.filter(x => x !== g) : [...p.goals, g] }));
 
   const canProceed = () => {
-    if (step === 3) return data.goals.length > 0;
+    if (step === 1) return data.industry !== "";
+    if (step === 4) return data.goals.length > 0;
     return true;
   };
 
@@ -95,50 +205,58 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     else onComplete(data);
   };
 
-  const back = () => {
-    if (step > 0) setStep(s => s - 1);
-  };
+  const industries = INDUSTRIES[data.profession] || [];
 
   return (
     <div
       className="min-h-screen bg-background flex flex-col items-center justify-start sm:justify-center overflow-y-auto"
-      style={{ paddingTop: "max(24px, env(safe-area-inset-top))", paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}
+      style={{ paddingTop: "max(20px, env(safe-area-inset-top))", paddingBottom: "max(20px, env(safe-area-inset-bottom))" }}
     >
-      <div className="w-full max-w-[420px] px-4">
+      <div className="w-full max-w-[430px] px-4">
+
+        {/* Header brand */}
+        <div className="text-center mb-5">
+          <div className="inline-flex items-center gap-2 mb-1">
+            <div className="w-7 h-7 rounded-xl gradient-brand flex items-center justify-center">
+              <Zap className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-sm font-bold text-foreground">ProductiveDay</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Let's build your personalised daily system</p>
+        </div>
 
         {/* Step progress */}
-        <div className="flex items-center justify-between mb-5 px-1">
+        <div className="flex items-center mb-5 px-1">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
-            const isDone = i < step;
+            const isDone   = i < step;
             const isActive = i === step;
             return (
               <div key={s.label} className="flex items-center flex-1 last:flex-none">
                 <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                      isDone
-                        ? "gradient-brand"
-                        : isActive
-                        ? "bg-card border-2 border-primary shadow-card"
-                        : "bg-muted border-2 border-transparent"
-                    }`}
-                  >
+                  <div className={[
+                    "w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300",
+                    isDone   ? "gradient-brand" :
+                    isActive ? "bg-card border-2 border-primary shadow-sm" :
+                               "bg-muted border-2 border-transparent",
+                  ].join(" ")}>
                     {isDone
-                      ? <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                      : <Icon className={`w-3.5 h-3.5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                      ? <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                      : <Icon className={`w-3 h-3 ${isActive ? "text-primary" : "text-muted-foreground/40"}`} />
                     }
                   </div>
-                  <span className={`text-[9px] font-semibold transition-colors leading-none ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={[
+                    "text-[9px] font-semibold leading-none",
+                    isActive ? "text-foreground" : "text-muted-foreground/50",
+                  ].join(" ")}>
                     {s.label}
                   </span>
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div
-                    className={`h-[2px] flex-1 mx-1 mb-4 rounded-full transition-all duration-300 ${
-                      i < step ? "gradient-brand" : "bg-muted"
-                    }`}
-                  />
+                  <div className={[
+                    "h-[2px] flex-1 mx-1 mb-4 rounded-full transition-all duration-500",
+                    i < step ? "gradient-brand" : "bg-muted/60",
+                  ].join(" ")} />
                 )}
               </div>
             );
@@ -146,156 +264,165 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
         </div>
 
         {/* Card */}
-        <div
-          className="bg-card rounded-2xl border border-border shadow-card p-4 sm:p-6 animate-fade-in"
-          key={step}
-        >
-          {/* Step 0: Wake Up */}
+        <div className="bg-card rounded-2xl border border-border shadow-card p-5 animate-fade-in" key={step}>
+
+          {/* ── Step 0: Profession ── */}
           {step === 0 && (
             <>
-              <div className="text-center mb-5">
-                <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mx-auto mb-3">
-                  <Sun className="w-6 h-6 text-primary" />
-                </div>
-                <h2 className="text-lg font-bold text-foreground mb-1">When do you wake up?</h2>
-                <p className="text-sm text-muted-foreground">We'll build your schedule around this.</p>
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-bold text-foreground mb-1">What best describes you?</h2>
+                <p className="text-xs text-muted-foreground">We'll tailor your schedule to your role</p>
               </div>
-              <div className="grid grid-cols-4 gap-2 mb-4">
-                {WAKE_PRESETS.map(p => (
-                  <button
+              <div className="space-y-2">
+                {PROFESSIONS.map(p => (
+                  <OptionCard
                     key={p.value}
-                    onClick={() => setData(prev => ({ ...prev, wakeUpTime: p.value }))}
-                    style={{ touchAction: "manipulation" }}
-                    className={`py-3 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${
-                      data.wakeUpTime === p.value
-                        ? "gradient-brand text-white shadow-card font-bold"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
+                    selected={data.profession === p.value}
+                    onClick={() => setData(d => ({ ...d, profession: p.value, industry: "" }))}
+                    icon={p.icon} label={p.label} desc={p.desc}
+                  />
                 ))}
               </div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[11px] text-muted-foreground font-medium">or set custom</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-              <input
-                type="time"
-                value={data.wakeUpTime}
-                onChange={e => setData(prev => ({ ...prev, wakeUpTime: e.target.value }))}
-                className="w-full h-12 rounded-xl border border-input bg-background px-4 text-base font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-ring/50 mb-3"
-              />
-              <p className="text-center text-xs text-muted-foreground">
-                Day starts at <span className="font-bold text-foreground">{formatDisplay(data.wakeUpTime)}</span>
-              </p>
             </>
           )}
 
-          {/* Step 1: Work Type */}
+          {/* ── Step 1: Industry ── */}
           {step === 1 && (
             <>
-              <div className="text-center mb-5">
-                <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mx-auto mb-3">
-                  <Briefcase className="w-6 h-6 text-primary" />
-                </div>
-                <h2 className="text-lg font-bold text-foreground mb-1">How do you work?</h2>
-                <p className="text-sm text-muted-foreground">This shapes how we structure your blocks.</p>
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-bold text-foreground mb-1">What's your field?</h2>
+                <p className="text-xs text-muted-foreground">Your schedule will be built around this</p>
               </div>
-              <div className="space-y-2.5">
-                {WORK_TYPES.map(w => (
-                  <button
-                    key={w.value}
-                    onClick={() => setData(prev => ({ ...prev, workType: w.value }))}
-                    style={{ touchAction: "manipulation" }}
-                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center gap-3 border active:scale-[0.99] ${
-                      data.workType === w.value
-                        ? "border-primary/30 bg-primary/5 shadow-card"
-                        : "border-border bg-background hover:border-border hover:bg-muted/30"
-                    }`}
-                  >
-                    <span className="text-2xl flex-shrink-0">{w.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm text-foreground">{w.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{w.desc}</div>
-                    </div>
-                    {data.workType === w.value && (
-                      <div className="w-5 h-5 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
-                        <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                      </div>
-                    )}
-                  </button>
+              <div className="grid grid-cols-2 gap-2">
+                {industries.map(ind => (
+                  <OptionCard
+                    key={ind.value}
+                    selected={data.industry === ind.value}
+                    onClick={() => setData(d => ({ ...d, industry: ind.value }))}
+                    icon={ind.icon} label={ind.label} small
+                  />
                 ))}
               </div>
+              {data.industry === "" && (
+                <p className="text-xs text-destructive text-center mt-3 font-medium">Please select your field</p>
+              )}
             </>
           )}
 
-          {/* Step 2: Productivity */}
+          {/* ── Step 2: Wake time + work hours ── */}
           {step === 2 && (
             <>
-              <div className="text-center mb-5">
-                <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mx-auto mb-3">
-                  <Brain className="w-6 h-6 text-primary" />
-                </div>
-                <h2 className="text-lg font-bold text-foreground mb-1">When are you most productive?</h2>
-                <p className="text-sm text-muted-foreground">We'll schedule hard work during peak hours.</p>
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-bold text-foreground mb-1">Your daily schedule</h2>
+                <p className="text-xs text-muted-foreground">When does your day start?</p>
               </div>
-              <div className="space-y-2.5">
-                {PRODUCTIVITY_TYPES.map(p => (
-                  <button
-                    key={p.value}
-                    onClick={() => setData(prev => ({ ...prev, productivity: p.value }))}
-                    style={{ touchAction: "manipulation" }}
-                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center gap-3.5 border active:scale-[0.99] ${
-                      data.productivity === p.value
-                        ? "border-primary/30 bg-primary/5 shadow-card"
-                        : "border-border bg-background hover:border-border hover:bg-muted/30"
-                    }`}
-                  >
-                    <span className="text-2xl flex-shrink-0">{p.icon}</span>
-                    <div className="flex-1">
-                      <div className="font-semibold text-sm text-foreground">{p.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{p.desc}</div>
-                    </div>
-                    {data.productivity === p.value && (
-                      <div className="w-5 h-5 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
-                        <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                      </div>
-                    )}
-                  </button>
-                ))}
+
+              <div className="mb-4">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Wake-up time</div>
+                <div className="grid grid-cols-5 gap-1.5 mb-2">
+                  {WAKE_PRESETS.map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setData(d => ({ ...d, wakeUpTime: v }))}
+                      style={{ touchAction: "manipulation" }}
+                      className={[
+                        "py-2.5 rounded-xl text-[11px] font-semibold transition-all active:scale-95",
+                        data.wakeUpTime === v
+                          ? "gradient-brand text-white shadow-sm"
+                          : "bg-muted text-muted-foreground hover:text-foreground",
+                      ].join(" ")}
+                    >
+                      {fmt12(v)}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="time"
+                  value={data.wakeUpTime}
+                  onChange={e => setData(d => ({ ...d, wakeUpTime: e.target.value }))}
+                  className="w-full h-10 rounded-xl border border-input bg-background px-4 text-sm font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-ring/50"
+                />
+              </div>
+
+              <div>
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Work window</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {WORK_HOURS_OPTIONS.map(w => (
+                    <OptionCard
+                      key={w.value}
+                      selected={data.workHours === w.value}
+                      onClick={() => setData(d => ({ ...d, workHours: w.value }))}
+                      icon={w.icon} label={w.label} desc={w.desc} small
+                    />
+                  ))}
+                </div>
               </div>
             </>
           )}
 
-          {/* Step 3: Goals */}
+          {/* ── Step 3: Peak + Work type ── */}
           {step === 3 && (
             <>
-              <div className="text-center mb-5">
-                <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mx-auto mb-3">
-                  <Target className="w-6 h-6 text-primary" />
-                </div>
-                <h2 className="text-lg font-bold text-foreground mb-1">What are your main goals?</h2>
-                <p className="text-sm text-muted-foreground">Select all that apply.</p>
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-bold text-foreground mb-1">How you work best</h2>
+                <p className="text-xs text-muted-foreground">We'll put hard tasks at your peak</p>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
+
+              <div className="mb-4">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Peak focus time</div>
+                <div className="space-y-2">
+                  {PRODUCTIVITY_OPTS.map(p => (
+                    <OptionCard
+                      key={p.value}
+                      selected={data.productivity === p.value}
+                      onClick={() => setData(d => ({ ...d, productivity: p.value }))}
+                      icon={p.icon} label={p.label} desc={p.desc} small
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Work style</div>
+                <div className="space-y-2">
+                  {WORK_TYPES.map(w => (
+                    <OptionCard
+                      key={w.value}
+                      selected={data.workType === w.value}
+                      onClick={() => setData(d => ({ ...d, workType: w.value }))}
+                      icon={w.icon} label={w.label} desc={w.desc} small
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Step 4: Goals ── */}
+          {step === 4 && (
+            <>
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-bold text-foreground mb-1">What are you working towards?</h2>
+                <p className="text-xs text-muted-foreground">Select all that matter to you right now</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 {GOAL_OPTIONS.map(g => {
-                  const isSelected = data.goals.includes(g.value);
+                  const sel = data.goals.includes(g.value);
                   return (
                     <button
                       key={g.value}
                       onClick={() => toggleGoal(g.value)}
                       style={{ touchAction: "manipulation" }}
-                      className={`p-3.5 rounded-xl transition-all duration-200 text-left flex items-center gap-2.5 border active:scale-95 ${
-                        isSelected
-                          ? "border-primary/30 bg-primary/5 shadow-card"
-                          : "border-border bg-background hover:bg-muted/30"
-                      }`}
+                      className={[
+                        "p-3 rounded-xl border flex items-center gap-2.5 transition-all active:scale-95",
+                        sel
+                          ? "border-primary/40 bg-primary/5 shadow-sm"
+                          : "border-border bg-background hover:bg-muted/30",
+                      ].join(" ")}
                     >
                       <span className="text-xl flex-shrink-0">{g.icon}</span>
                       <span className="text-xs font-semibold text-foreground leading-snug flex-1 min-w-0">{g.label}</span>
-                      {isSelected && (
+                      {sel && (
                         <div className="w-4 h-4 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
                           <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
                         </div>
@@ -305,87 +432,57 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 })}
               </div>
               {data.goals.length === 0 && (
-                <p className="text-xs text-destructive text-center mt-3 font-medium">
-                  Please select at least one goal
-                </p>
+                <p className="text-xs text-destructive text-center mt-3 font-medium">Pick at least one goal</p>
               )}
             </>
           )}
 
-          {/* Step 4: Break Style */}
-          {step === 4 && (
+          {/* ── Step 5: Break style ── */}
+          {step === 5 && (
             <>
-              <div className="text-center mb-5">
-                <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mx-auto mb-3">
-                  <Coffee className="w-6 h-6 text-primary" />
-                </div>
-                <h2 className="text-lg font-bold text-foreground mb-1">How do you like your breaks?</h2>
-                <p className="text-sm text-muted-foreground">We'll space rest time accordingly.</p>
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-bold text-foreground mb-1">How do you rest?</h2>
+                <p className="text-xs text-muted-foreground">Good breaks make the work better</p>
               </div>
               <div className="space-y-2.5">
                 {BREAK_STYLES.map(b => (
-                  <button
+                  <OptionCard
                     key={b.value}
-                    onClick={() => setData(prev => ({ ...prev, breakStyle: b.value }))}
-                    style={{ touchAction: "manipulation" }}
-                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center gap-3 border active:scale-[0.99] ${
-                      data.breakStyle === b.value
-                        ? "border-primary/30 bg-primary/5 shadow-card"
-                        : "border-border bg-background hover:border-border hover:bg-muted/30"
-                    }`}
-                  >
-                    <span className="text-2xl flex-shrink-0">{b.icon}</span>
-                    <div className="flex-1">
-                      <div className="font-semibold text-sm text-foreground">{b.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{b.desc}</div>
-                    </div>
-                    {data.breakStyle === b.value && (
-                      <div className="w-5 h-5 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
-                        <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                      </div>
-                    )}
-                  </button>
+                    selected={data.breakStyle === b.value}
+                    onClick={() => setData(d => ({ ...d, breakStyle: b.value }))}
+                    icon={b.icon} label={b.label} desc={b.desc}
+                  />
                 ))}
               </div>
             </>
           )}
-
-          {/* Navigation */}
-          <div className="flex gap-2.5 mt-6">
-            {step > 0 && (
-              <Button
-                variant="outline"
-                onClick={back}
-                style={{ touchAction: "manipulation" }}
-                className="h-12 px-5 gap-2 font-semibold rounded-xl text-sm active:scale-95"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            )}
-            <Button
-              onClick={next}
-              disabled={!canProceed()}
-              style={{ touchAction: "manipulation" }}
-              className={`flex-1 h-12 gradient-brand text-white font-bold text-sm gap-2 border-0 rounded-xl transition-opacity active:scale-[0.98] ${
-                !canProceed() ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              {step === STEPS.length - 1 ? (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate My Schedule
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </Button>
-          </div>
         </div>
 
+        {/* Navigation */}
+        <div className="flex items-center gap-3 mt-4">
+          {step > 0 && (
+            <button
+              onClick={() => setStep(s => s - 1)}
+              className="flex items-center gap-1.5 h-12 px-4 rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-all"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          )}
+          <button
+            onClick={next}
+            disabled={!canProceed()}
+            style={{ touchAction: "manipulation" }}
+            className="flex-1 h-12 rounded-xl gradient-brand text-white text-sm font-bold flex items-center justify-center gap-2 shadow-brand disabled:opacity-40 transition-all active:scale-[0.98]"
+          >
+            {step === STEPS.length - 1 ? "Generate My Schedule ✨" : "Continue"}
+            {step < STEPS.length - 1 && <ArrowRight className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {/* Progress text */}
+        <p className="text-center text-[11px] text-muted-foreground mt-3">
+          Step {step + 1} of {STEPS.length}
+        </p>
       </div>
     </div>
   );

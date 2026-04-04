@@ -114,6 +114,22 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
 
     if (error || !data) { setLoading(false); return; }
 
+    // ── Daily reset: any block marked done on a PREVIOUS day gets reset ──
+    const staleIds = data
+      .filter((t) => t.status === "done" && !isToday(t.completed_at))
+      .map((t) => t.id);
+
+    if (staleIds.length > 0) {
+      await supabase
+        .from("tasks")
+        .update({ status: "todo", completed_at: null })
+        .in("id", staleIds)
+        .eq("user_id", user.id);
+      // Re-fetch with clean state
+      fetchBlocks();
+      return;
+    }
+
     const weekdayBlocks: TimeBlockData[] = [];
     const weekendBlocks: TimeBlockData[] = [];
     const completedMap: Record<string, boolean> = {};
@@ -132,6 +148,7 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
         newRowIds.weekday.add(task.id);
       }
 
+      // Only mark as done if completed TODAY
       if (task.status === "done" && isToday(task.completed_at)) {
         completedMap[task.id] = true;
       }
@@ -151,6 +168,24 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
       setLoading(false);
     }
   }, [user, fetchBlocks]);
+
+  // ── Midnight day-change watcher ────────────────────────────
+  // If the app is left open overnight, reset completed state when date changes
+  useEffect(() => {
+    const checkDayChange = () => {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const lastStr = sessionStorage.getItem("pd2d-day");
+      if (lastStr && lastStr !== todayStr) {
+        setCompleted({});   // clear UI immediately
+        fetchBlocks();      // DB reset happens inside fetchBlocks
+      }
+      sessionStorage.setItem("pd2d-day", todayStr);
+    };
+
+    checkDayChange();
+    const interval = setInterval(checkDayChange, 60_000); // check every minute
+    return () => clearInterval(interval);
+  }, [fetchBlocks]);
 
   // Realtime subscription
   useEffect(() => {
