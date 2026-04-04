@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Palette, RotateCcw } from "lucide-react";
+import { MigrationBanner } from "@/lib/migration/MigrationBanner";
 import { useDragReorder } from "@/hooks/useDragReorder";
 import { Button } from "@/components/ui/button";
 import { PlannerHeader } from "@/components/planner/PlannerHeader";
@@ -153,6 +154,8 @@ export default function Index() {
         time={time}
         onSelectDay={setSelectedDay}
       />
+
+      <MigrationBanner />
 
       <div className="max-w-2xl mx-auto px-4 pt-5 pb-12">
         <StatsBar blocks={blocks} completed={completed} categories={categories} />
