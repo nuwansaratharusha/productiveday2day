@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Plus, Palette, RotateCcw } from "lucide-react";
 import { MigrationBanner } from "@/lib/migration/MigrationBanner";
 import { useDragReorder } from "@/hooks/useDragReorder";
+import { usePlannerBlocks } from "@/lib/hooks/usePlannerBlocks";
 import { Button } from "@/components/ui/button";
 import { PlannerHeader } from "@/components/planner/PlannerHeader";
 import { StatsBar } from "@/components/planner/StatsBar";
@@ -23,95 +24,94 @@ import {
 import { generateSmartSchedule } from "@/lib/smartScheduleGenerator";
 import { recalculateTimes } from "@/lib/scheduleGenerator";
 
-const STORAGE_KEY = "zip-planner-blocks";
-const ONBOARDING_KEY = "zip-planner-onboarding";
-
-function loadBlocks(): { weekday: TimeBlockData[]; weekend: TimeBlockData[] } | null {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return null;
-}
-
-function saveBlocks(data: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
 export default function Index() {
-  const savedOnboarding = localStorage.getItem(ONBOARDING_KEY);
-  const [onboarded, setOnboarded] = useState<boolean>(!!savedOnboarding || !!loadBlocks());
-
   const today = new Date().getDay();
   const defaultDay = today === 0 ? 6 : today - 1;
   const [selectedDay, setSelectedDay] = useState(defaultDay);
   const isWeekend = selectedDay >= 5;
 
-  const [allBlocks, setAllBlocks] = useState<{ weekday: TimeBlockData[]; weekend: TimeBlockData[] }>(
-    () => loadBlocks() || { weekday: [], weekend: [] }
-  );
-  const blocks = isWeekend ? allBlocks.weekend : allBlocks.weekday;
-
-  const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [time, setTime] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<TimeBlockData | null>(null);
   const [catManagerOpen, setCatManagerOpen] = useState(false);
   const [categories, setCategoriesState] = useState<Record<string, Category>>(loadCategories);
 
+  // ── Supabase-backed planner state ───────────────────────────
+  const {
+    allBlocks,
+    completed,
+    hasBlocks,
+    loading,
+    saveBlocks,
+    toggleComplete,
+    bulkCreate,
+  } = usePlannerBlocks();
+
+  // Onboarded = has blocks in Supabase (checked after first load)
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!loading) {
+      setOnboarded(hasBlocks);
+    }
+  }, [loading, hasBlocks]);
+
+  const blocks = isWeekend ? allBlocks.weekend : allBlocks.weekday;
+  const dayType: "weekday" | "weekend" = isWeekend ? "weekend" : "weekday";
+
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    setCompleted({});
-  }, [selectedDay]);
+  // ── Onboarding ──────────────────────────────────────────────
+  const handleOnboardingComplete = useCallback(
+    async (data: OnboardingData) => {
+      const schedule = generateSmartSchedule(data);
+      await bulkCreate(schedule);
+      setOnboarded(true);
+    },
+    [bulkCreate]
+  );
 
-  const handleOnboardingComplete = (data: OnboardingData) => {
-    localStorage.setItem(ONBOARDING_KEY, JSON.stringify(data));
-    const schedule = generateSmartSchedule(data);
-    setAllBlocks(schedule);
-    saveBlocks(schedule);
-    setOnboarded(true);
-  };
-
-  const handleResetOnboarding = () => {
-    localStorage.removeItem(ONBOARDING_KEY);
-    localStorage.removeItem(STORAGE_KEY);
+  const handleResetOnboarding = useCallback(async () => {
+    // Clear all planner blocks from Supabase
+    await saveBlocks([], "weekday");
+    await saveBlocks([], "weekend");
     setOnboarded(false);
-    setAllBlocks({ weekday: [], weekend: [] });
-  };
+  }, [saveBlocks]);
 
+  // ── Category management ─────────────────────────────────────
   const handleCategorySave = (cats: Record<string, Category>) => {
     setCategoriesState(cats);
     saveCategories(cats);
     updateCategoriesRef(cats);
   };
 
+  // ── Active block detection ──────────────────────────────────
   const activeIndex = selectedDay === defaultDay ? getCurrentTimeBlock(blocks) : -1;
   const activeBlock = activeIndex >= 0 ? blocks[activeIndex] : null;
-  const isBreakActive = activeBlock?.block.toLowerCase().includes("break") && !activeBlock?.block.toLowerCase().includes("breakfast");
+  const isBreakActive =
+    activeBlock?.block.toLowerCase().includes("break") &&
+    !activeBlock?.block.toLowerCase().includes("breakfast");
 
+  // ── Block mutations ─────────────────────────────────────────
   const updateBlocks = useCallback(
     (newBlocks: TimeBlockData[]) => {
-      const updated = {
-        ...allBlocks,
-        [isWeekend ? "weekend" : "weekday"]: newBlocks,
-      };
-      setAllBlocks(updated);
-      saveBlocks(updated);
+      saveBlocks(newBlocks, dayType);
     },
-    [allBlocks, isWeekend]
+    [saveBlocks, dayType]
   );
 
-  const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
-    const newBlocks = [...blocks];
-    const [moved] = newBlocks.splice(fromIndex, 1);
-    newBlocks.splice(toIndex, 0, moved);
-    const recalculated = recalculateTimes(newBlocks);
-    updateBlocks(recalculated);
-  }, [blocks, updateBlocks]);
+  const handleReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      const newBlocks = [...blocks];
+      const [moved] = newBlocks.splice(fromIndex, 1);
+      newBlocks.splice(toIndex, 0, moved);
+      updateBlocks(recalculateTimes(newBlocks));
+    },
+    [blocks, updateBlocks]
+  );
 
   const {
     containerRef,
@@ -129,9 +129,14 @@ export default function Index() {
   const handleSave = (data: Omit<TimeBlockData, "id"> & { id?: string }) => {
     let newBlocks: TimeBlockData[];
     if (data.id) {
-      newBlocks = blocks.map((b) => (b.id === data.id ? { ...b, ...data } as TimeBlockData : b));
+      newBlocks = blocks.map((b) =>
+        b.id === data.id ? ({ ...b, ...data } as TimeBlockData) : b
+      );
     } else {
-      const newBlock: TimeBlockData = { ...data, id: `block-${Date.now()}` } as TimeBlockData;
+      const newBlock: TimeBlockData = {
+        ...data,
+        id: `block-${Date.now()}`,
+      } as TimeBlockData;
       newBlocks = [...blocks, newBlock];
     }
     updateBlocks(recalculateTimes(newBlocks));
@@ -141,6 +146,16 @@ export default function Index() {
     const newBlocks = blocks.filter((b) => b.id !== id);
     updateBlocks(recalculateTimes(newBlocks));
   };
+
+  // ── Loading / onboarding gate ───────────────────────────────
+  if (onboarded === null) {
+    // First render while we wait for Supabase
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   if (!onboarded) {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
@@ -171,7 +186,8 @@ export default function Index() {
               {isWeekend ? "Weekend" : "Weekday"} — {DAYS[selectedDay]}
             </span>
             <span className="text-[11px] text-muted-foreground ml-2">
-              {blocks.length} blocks · {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
+              {blocks.length} blocks ·{" "}
+              {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -197,7 +213,10 @@ export default function Index() {
               size="sm"
               variant="outline"
               className="h-8 gap-1.5 text-xs font-semibold rounded-lg ml-1 px-3"
-              onClick={() => { setEditingBlock(null); setDialogOpen(true); }}
+              onClick={() => {
+                setEditingBlock(null);
+                setDialogOpen(true);
+              }}
             >
               <Plus className="w-3.5 h-3.5" /> Add Block
             </Button>
@@ -215,8 +234,11 @@ export default function Index() {
               isDragging={dragState.dragIndex === i}
               isDropTarget={dragState.dropIndex === i}
               dropPosition={dragState.dropIndex === i ? dragState.dropPosition : null}
-              onToggle={() => setCompleted((prev) => ({ ...prev, [block.id]: !prev[block.id] }))}
-              onEdit={() => { setEditingBlock(block); setDialogOpen(true); }}
+              onToggle={() => toggleComplete(block.id)}
+              onEdit={() => {
+                setEditingBlock(block);
+                setDialogOpen(true);
+              }}
               onDelete={() => handleDelete(block.id)}
               onDragStart={handleDragStart(i)}
               onDragEnd={handleDragEnd}
@@ -231,8 +253,11 @@ export default function Index() {
           ))}
         </div>
 
-        <DayActionsBar blocks={blocks} completed={completed} selectedDay={selectedDay} />
-
+        <DayActionsBar
+          blocks={blocks}
+          completed={completed}
+          selectedDay={selectedDay}
+        />
       </div>
 
       <BlockDialog
