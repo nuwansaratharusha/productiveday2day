@@ -1,234 +1,163 @@
 // =============================================================
-// ProductiveDay — Content Pipeline Kanban
-// Drag-free tap-to-move status board with add content sheet
+// ProductiveDay — Content Pipeline Kanban (Redesigned)
 // =============================================================
 
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  getContentPipeline,
-  createContentPiece,
-  moveContentStatus,
-  deleteContentPiece,
-} from "@/lib/creator/contentActions";
+import { CreatorLayout } from "@/components/creator/CreatorLayout";
+import { getContentPipeline, createContentPiece, moveContentStatus, deleteContentPiece } from "@/lib/creator/contentActions";
 
 interface ContentPiece {
-  id: string;
-  title: string;
-  content_type: string;
-  status: string;
-  platforms?: string[];
-  planned_date?: string;
-  tags?: string[];
-  notes?: string;
+  id: string; title: string; content_type: string; status: string;
+  platforms?: string[]; planned_date?: string; notes?: string;
 }
 
-const STATUSES = [
-  { key: "idea",       label: "💡 Idea",       color: "text-slate-500",   headerBg: "bg-slate-100 dark:bg-slate-800" },
-  { key: "brief",      label: "📝 Brief",      color: "text-blue-500",    headerBg: "bg-blue-50 dark:bg-blue-950" },
-  { key: "scripting",  label: "✍️ Scripting",  color: "text-purple-500",  headerBg: "bg-purple-50 dark:bg-purple-950" },
-  { key: "shooting",   label: "🎬 Shooting",   color: "text-orange-500",  headerBg: "bg-orange-50 dark:bg-orange-950" },
-  { key: "editing",    label: "✂️ Editing",    color: "text-yellow-500",  headerBg: "bg-yellow-50 dark:bg-yellow-950" },
-  { key: "review",     label: "👀 Review",     color: "text-pink-500",    headerBg: "bg-pink-50 dark:bg-pink-950" },
-  { key: "scheduled",  label: "📅 Scheduled",  color: "text-teal-500",    headerBg: "bg-teal-50 dark:bg-teal-950" },
-  { key: "published",  label: "🚀 Published",  color: "text-green-500",   headerBg: "bg-green-50 dark:bg-green-950" },
+const STAGES = [
+  { key: "idea",      label: "Idea",      emoji: "💡", color: "#94a3b8", bg: "bg-slate-100 dark:bg-slate-800",    text: "text-slate-600 dark:text-slate-300" },
+  { key: "brief",     label: "Brief",     emoji: "📝", color: "#60a5fa", bg: "bg-blue-100 dark:bg-blue-950",      text: "text-blue-600 dark:text-blue-300" },
+  { key: "scripting", label: "Scripting", emoji: "✍️", color: "#a78bfa", bg: "bg-purple-100 dark:bg-purple-950",  text: "text-purple-600 dark:text-purple-300" },
+  { key: "shooting",  label: "Shooting",  emoji: "🎬", color: "#fb923c", bg: "bg-orange-100 dark:bg-orange-950",  text: "text-orange-600 dark:text-orange-300" },
+  { key: "editing",   label: "Editing",   emoji: "✂️", color: "#facc15", bg: "bg-yellow-100 dark:bg-yellow-950",  text: "text-yellow-600 dark:text-yellow-300" },
+  { key: "review",    label: "Review",    emoji: "👀", color: "#f472b6", bg: "bg-pink-100 dark:bg-pink-950",      text: "text-pink-600 dark:text-pink-300" },
+  { key: "scheduled", label: "Scheduled", emoji: "📅", color: "#34d399", bg: "bg-teal-100 dark:bg-teal-950",      text: "text-teal-600 dark:text-teal-300" },
+  { key: "published", label: "Published", emoji: "🚀", color: "#4ade80", bg: "bg-green-100 dark:bg-green-950",    text: "text-green-600 dark:text-green-300" },
 ];
 
-const CONTENT_TYPES = ["video","short","reel","tiktok","blog","newsletter","podcast","tweet","carousel","thread","other"];
+const CONTENT_TYPES = [
+  { key: "video", icon: "🎥" }, { key: "short", icon: "📱" }, { key: "reel", icon: "🎞️" },
+  { key: "tiktok", icon: "🎵" }, { key: "blog", icon: "📄" }, { key: "newsletter", icon: "📧" },
+  { key: "podcast", icon: "🎙️" }, { key: "tweet", icon: "🐦" }, { key: "carousel", icon: "🖼️" },
+  { key: "thread", icon: "🧵" }, { key: "other", icon: "📦" },
+];
 const PLATFORMS = ["YouTube","TikTok","Instagram","LinkedIn","Twitter","Blog","Newsletter","Podcast"];
 
-const TYPE_ICONS: Record<string, string> = {
-  video:"🎥",short:"📱",reel:"🎞️",tiktok:"🎵",blog:"📄",
-  newsletter:"📧",podcast:"🎙️",tweet:"🐦",carousel:"🖼️",thread:"🧵",other:"📦",
-};
+function typeIcon(t: string) { return CONTENT_TYPES.find(c => c.key === t)?.icon || "📦"; }
+function formatDate(d: string) { return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric"});
-}
-
-function MoveMenu({
-  currentStatus,
-  onMove,
-  onClose,
-}: {
-  currentStatus: string;
-  onMove: (s: string) => void;
-  onClose: () => void;
-}) {
-  const others = STATUSES.filter(s => s.key !== currentStatus);
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-background rounded-t-3xl border-t border-border/50 w-full max-w-lg p-5 pb-8" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-center mb-4">
-          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
-        </div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Move to stage</h3>
-        <div className="grid grid-cols-2 gap-2">
-          {others.map(s => (
-            <button
-              key={s.key}
-              onClick={() => { onMove(s.key); onClose(); }}
-              className={`py-2.5 rounded-xl text-sm font-semibold ${s.headerBg} ${s.color} hover:opacity-90 active:scale-95 transition-all`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PieceCard({
-  piece,
-  onMove,
-  onDelete,
-  onOpenScript,
-}: {
+function PieceCard({ piece, stage, onMove, onDelete, onScript }: {
   piece: ContentPiece;
-  onMove: (id: string) => void;
+  stage: typeof STAGES[0];
+  onMove: (id: string, status: string) => void;
   onDelete: (id: string) => void;
-  onOpenScript: (id: string) => void;
+  onScript: (id: string) => void;
 }) {
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const others = STAGES.filter(s => s.key !== piece.status);
+
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-3 space-y-2 hover:shadow-sm transition-shadow">
-      <div className="flex items-start gap-2">
-        <span className="text-lg shrink-0">{TYPE_ICONS[piece.content_type] || "📦"}</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{piece.title}</p>
-          {piece.planned_date && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">📅 {formatDate(piece.planned_date)}</p>
-          )}
+    <>
+      <div className="bg-card border border-border/50 rounded-2xl p-3.5 space-y-2.5 hover:shadow-sm hover:border-border transition-all">
+        {/* Top */}
+        <div className="flex items-start gap-2.5">
+          <span className="text-xl shrink-0 mt-0.5">{typeIcon(piece.content_type)}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{piece.title}</p>
+            {piece.planned_date && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">📅 {formatDate(piece.planned_date)}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Platforms */}
+        {piece.platforms && piece.platforms.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {piece.platforms.map(p => (
+              <span key={p} className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-md font-medium">{p}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-1.5">
+          <button onClick={() => onScript(piece.id)}
+            className={`flex-1 py-1.5 rounded-xl text-[10px] font-bold transition-all ${stage.bg} ${stage.text} hover:opacity-80`}>
+            ✍️ Script
+          </button>
+          <button onClick={() => setShowMoveMenu(true)}
+            className="flex-1 py-1.5 rounded-xl bg-muted text-muted-foreground text-[10px] font-bold hover:bg-muted/80 transition-all">
+            ↕ Move
+          </button>
+          <button onClick={() => onDelete(piece.id)}
+            className="px-2 py-1.5 rounded-xl bg-muted text-muted-foreground text-[10px] hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 transition-all">
+            ✕
+          </button>
         </div>
       </div>
 
-      {piece.platforms && piece.platforms.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {piece.platforms.map(p => (
-            <span key={p} className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{p}</span>
-          ))}
+      {/* Move menu */}
+      {showMoveMenu && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowMoveMenu(false)}>
+          <div className="bg-background rounded-t-3xl w-full max-w-lg p-5 pb-8" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center mb-4"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
+            <p className="text-sm font-bold text-foreground mb-3">Move to stage</p>
+            <div className="grid grid-cols-2 gap-2">
+              {others.map(s => (
+                <button key={s.key} onClick={() => { onMove(piece.id, s.key); setShowMoveMenu(false); }}
+                  className={`py-3 rounded-xl text-sm font-bold transition-all active:scale-95 ${s.bg} ${s.text}`}>
+                  {s.emoji} {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
-
-      <div className="flex gap-1.5 pt-0.5">
-        <button
-          onClick={() => onOpenScript(piece.id)}
-          className="flex-1 py-1.5 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-300 text-[10px] font-semibold hover:opacity-90 transition-all"
-        >
-          ✍️ Script
-        </button>
-        <button
-          onClick={() => onMove(piece.id)}
-          className="flex-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-[10px] font-semibold hover:bg-muted/80 transition-all"
-        >
-          ↕ Move
-        </button>
-        <button
-          onClick={() => onDelete(piece.id)}
-          className="py-1.5 px-2 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-400 text-[10px] hover:opacity-90 transition-all"
-        >
-          🗑️
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
-function AddContentSheet({
-  open,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSave: () => void;
-}) {
+function AddSheet({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: () => void }) {
   const [title, setTitle] = useState("");
-  const [contentType, setContentType] = useState("video");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [plannedDate, setPlannedDate] = useState("");
-  const [notes, setNotes] = useState("");
+  const [type, setType] = useState("video");
+  const [plats, setPlats] = useState<string[]>([]);
+  const [date, setDate] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) { setTitle(""); setContentType("video"); setSelectedPlatforms([]); setPlannedDate(""); setNotes(""); }
+    if (open) { setTitle(""); setType("video"); setPlats([]); setDate(""); }
   }, [open]);
 
   async function handleSave() {
     if (!title.trim()) return;
     setSaving(true);
-    await createContentPiece({
-      title: title.trim(),
-      content_type: contentType,
-      status: "idea",
-      platforms: selectedPlatforms.length ? selectedPlatforms : undefined,
-      planned_date: plannedDate || undefined,
-      notes: notes.trim() || undefined,
-    });
+    await createContentPiece({ title: title.trim(), content_type: type, status: "idea", platforms: plats.length ? plats : undefined, planned_date: date || undefined });
     setSaving(false);
-    onSave();
-    onClose();
+    onSave(); onClose();
   }
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-background rounded-t-3xl border-t border-border/50 flex flex-col"
-        style={{ maxHeight: "90dvh" }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
-          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-background rounded-t-3xl flex flex-col" style={{ maxHeight: "90dvh" }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-center pt-3 pb-2 shrink-0"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
+
+        <div className="px-5 pb-2 shrink-0">
+          <h2 className="text-lg font-bold text-foreground">🎬 New Content</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Add a new piece to your pipeline</p>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-5 pb-2 space-y-4">
-          <h2 className="text-lg font-bold text-foreground pt-2">🎬 New Content</h2>
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="What are you creating?" autoFocus
+            className="w-full text-base font-semibold bg-transparent border-b-2 border-border focus:border-primary pb-2 text-foreground placeholder:text-muted-foreground/40 focus:outline-none transition-colors" />
 
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Title *</label>
-            <input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="What are you creating?"
-              className="w-full bg-muted/50 border border-border/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40"
-              autoFocus
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Content Type</label>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Content Type</label>
             <div className="flex flex-wrap gap-2">
               {CONTENT_TYPES.map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setContentType(t)}
-                  className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1 ${
-                    contentType === t ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {TYPE_ICONS[t]} {t}
+                <button key={t.key} type="button" onClick={() => setType(t.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all capitalize ${type === t.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {t.icon} {t.key}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Platforms</label>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Platforms</label>
             <div className="flex flex-wrap gap-2">
               {PLATFORMS.map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setSelectedPlatforms(prev =>
-                    prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-                  )}
-                  className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                    selectedPlatforms.includes(p) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
+                <button key={p} type="button" onClick={() => setPlats(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${plats.includes(p) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                   {p}
                 </button>
               ))}
@@ -236,34 +165,16 @@ function AddContentSheet({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Planned Date</label>
-            <input
-              type="date"
-              value={plannedDate}
-              onChange={e => setPlannedDate(e.target.value)}
-              className="w-full bg-muted/50 border border-border/50 rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Notes</label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Brief description, angle, references..."
-              rows={3}
-              className="w-full bg-muted/50 border border-border/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
-            />
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Planned Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
         </div>
 
         <div className="px-5 py-4 border-t border-border/30 shrink-0">
-          <button
-            onClick={handleSave}
-            disabled={!title.trim() || saving}
-            className="w-full py-3 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-          >
-            {saving ? "Adding..." : "🎬 Add to Pipeline"}
+          <button onClick={handleSave} disabled={!title.trim() || saving}
+            className="w-full py-3.5 rounded-2xl bg-primary text-primary-foreground font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40 shadow-sm">
+            {saving ? "Adding..." : "Add to Pipeline →"}
           </button>
         </div>
       </div>
@@ -275,8 +186,7 @@ export default function ContentPipeline() {
   const navigate = useNavigate();
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeColumn, setActiveColumn] = useState("idea");
-  const [movingPiece, setMovingPiece] = useState<{ id: string; status: string } | null>(null);
+  const [activeStage, setActiveStage] = useState("idea");
   const [showAdd, setShowAdd] = useState(false);
 
   const load = useCallback(async () => {
@@ -288,56 +198,46 @@ export default function ContentPipeline() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleMove(id: string, newStatus: string) {
-    setPieces(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
-    await moveContentStatus(id, newStatus);
+  async function handleMove(id: string, status: string) {
+    setPieces(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+    await moveContentStatus(id, status);
   }
-
   async function handleDelete(id: string) {
     setPieces(prev => prev.filter(p => p.id !== id));
     await deleteContentPiece(id);
   }
 
-  const columnPieces = (status: string) => pieces.filter(p => p.status === status);
+  const stage = STAGES.find(s => s.key === activeStage) || STAGES[0];
+  const stagePieces = pieces.filter(p => p.status === activeStage);
+  const total = pieces.length;
 
   return (
-    <div className="min-h-screen bg-background pb-28">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-xl border-b border-border/50">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">🎬 Content Pipeline</h1>
-            <p className="text-xs text-muted-foreground">{pieces.length} pieces in production</p>
+    <CreatorLayout>
+      {/* Stage selector */}
+      <div className="sticky top-[52px] z-10 bg-background/95 backdrop-blur-xl border-b border-border/40">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h1 className="text-lg font-bold text-foreground">🎬 Pipeline</h1>
+              <p className="text-xs text-muted-foreground">{total} piece{total !== 1 ? "s" : ""} in production</p>
+            </div>
+            <button onClick={() => setShowAdd(true)}
+              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 active:scale-95 transition-all shadow-sm">
+              + New
+            </button>
           </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:scale-95 transition-all"
-          >
-            + New
-          </button>
-        </div>
 
-        {/* Stage tabs */}
-        <div className="px-4 pb-3 max-w-2xl mx-auto">
+          {/* Stage pills */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-            {STATUSES.map(s => {
-              const count = columnPieces(s.key).length;
+            {STAGES.map(s => {
+              const count = pieces.filter(p => p.status === s.key).length;
+              const isActive = s.key === activeStage;
               return (
-                <button
-                  key={s.key}
-                  onClick={() => setActiveColumn(s.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    activeColumn === s.key
-                      ? `${s.headerBg} ${s.color}`
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {s.label}
-                  {count > 0 && (
-                    <span className="bg-current/20 rounded-full px-1.5 py-0.5 text-[10px]">
-                      {count}
-                    </span>
-                  )}
+                <button key={s.key} onClick={() => setActiveStage(s.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${isActive ? `${s.bg} ${s.text}` : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                  <span>{s.emoji}</span>
+                  <span>{s.label}</span>
+                  {count > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-black/10 dark:bg-white/10" : "bg-background/60"}`}>{count}</span>}
                 </button>
               );
             })}
@@ -346,74 +246,52 @@ export default function ContentPipeline() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 pt-4">
+        {/* Stage header */}
+        <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ backgroundColor: `${stage.color}15` }}>
+          <span className="text-2xl">{stage.emoji}</span>
+          <div>
+            <p className="text-sm font-bold" style={{ color: stage.color }}>{stage.label}</p>
+            <p className="text-xs text-muted-foreground">{stagePieces.length} piece{stagePieces.length !== 1 ? "s" : ""} here</p>
+          </div>
+          <div className="ml-auto">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: stage.color }} />
+          </div>
+        </div>
+
         {loading ? (
-          <div className="space-y-3">
-            {[1,2,3].map(i => <div key={i} className="h-28 rounded-2xl bg-muted animate-pulse" />)}
+          <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-28 rounded-2xl bg-muted animate-pulse" />)}</div>
+        ) : stagePieces.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-3 opacity-30">{stage.emoji}</div>
+            <h3 className="text-base font-bold text-foreground">Nothing here yet</h3>
+            <p className="text-sm text-muted-foreground mt-1 mb-5">
+              {activeStage === "idea" ? "Add your first content piece to get started." : "Move pieces here as they progress."}
+            </p>
+            {activeStage === "idea" && (
+              <button onClick={() => setShowAdd(true)}
+                className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 active:scale-95 transition-all">
+                Add First Piece
+              </button>
+            )}
           </div>
         ) : (
-          <>
-            {/* Current column */}
-            {(() => {
-              const current = STATUSES.find(s => s.key === activeColumn)!;
-              const items = columnPieces(activeColumn);
-              return (
-                <div>
-                  <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${current.headerBg} mb-3`}>
-                    <span className={`text-sm font-semibold ${current.color}`}>{current.label}</span>
-                    <span className={`text-xs font-bold ${current.color}`}>{items.length}</span>
-                  </div>
-
-                  {items.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="text-4xl mb-2 opacity-40">📭</div>
-                      <p className="text-sm text-muted-foreground">No content in this stage</p>
-                      {activeColumn === "idea" && (
-                        <button
-                          onClick={() => setShowAdd(true)}
-                          className="mt-3 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:scale-95 transition-all"
-                        >
-                          Add first piece
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {items.map(piece => (
-                        <PieceCard
-                          key={piece.id}
-                          piece={piece}
-                          onMove={(id) => setMovingPiece({ id, status: piece.status })}
-                          onDelete={handleDelete}
-                          onOpenScript={(id) => navigate(`/creator/scripts?piece=${id}`)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </>
+          <div className="space-y-3">
+            {stagePieces.map(piece => (
+              <PieceCard key={piece.id} piece={piece} stage={stage}
+                onMove={handleMove} onDelete={handleDelete}
+                onScript={(id) => navigate(`/creator/scripts?piece=${id}`)} />
+            ))}
+          </div>
         )}
       </div>
 
       {/* FAB */}
-      <button
-        onClick={() => setShowAdd(true)}
-        className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-primary text-primary-foreground text-2xl shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center z-40"
-      >
+      <button onClick={() => setShowAdd(true)}
+        className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-primary text-primary-foreground text-2xl shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center z-40">
         +
       </button>
 
-      {/* Move menu */}
-      {movingPiece && (
-        <MoveMenu
-          currentStatus={movingPiece.status}
-          onMove={(newStatus) => handleMove(movingPiece.id, newStatus)}
-          onClose={() => setMovingPiece(null)}
-        />
-      )}
-
-      <AddContentSheet open={showAdd} onClose={() => setShowAdd(false)} onSave={load} />
-    </div>
+      <AddSheet open={showAdd} onClose={() => setShowAdd(false)} onSave={load} />
+    </CreatorLayout>
   );
 }
