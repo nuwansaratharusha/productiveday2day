@@ -240,9 +240,9 @@ function GenerateForm({
 
       {error && (
         <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200/50 dark:border-red-800/50 p-3 text-sm text-red-600 dark:text-red-400">
-          {error.includes("VITE_ANTHROPIC_API_KEY") ? (
+          {error.includes("VITE_GEMINI_API_KEY") ? (
             <span>
-              Add <code className="bg-red-100 dark:bg-red-900/40 rounded px-1">VITE_ANTHROPIC_API_KEY=your-key</code> to your <code className="bg-red-100 dark:bg-red-900/40 rounded px-1">.env.local</code> file to enable AI script generation.
+              Add <code className="bg-red-100 dark:bg-red-900/40 rounded px-1">VITE_GEMINI_API_KEY=your-key</code> to your <code className="bg-red-100 dark:bg-red-900/40 rounded px-1">.env.local</code> file. Get a free key at <strong>aistudio.google.com/apikey</strong>
             </span>
           ) : error}
         </div>

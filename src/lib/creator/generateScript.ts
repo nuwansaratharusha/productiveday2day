@@ -1,6 +1,7 @@
 // =============================================================
 // ProductiveDay — AI Script Generation (Vite Browser Client)
-// Calls Anthropic API directly using VITE_ANTHROPIC_API_KEY
+// Uses Google Gemini API (free tier) via VITE_GEMINI_API_KEY
+// Get your free key at: https://aistudio.google.com/apikey
 // =============================================================
 
 import { createClient } from "@/lib/supabase/client";
@@ -34,11 +35,12 @@ export interface GeneratedScript {
 export async function generateScript(
   request: ScriptRequest
 ): Promise<{ data: GeneratedScript | null; error: string | null }> {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     return {
       data: null,
-      error: "VITE_ANTHROPIC_API_KEY is not set. Add it to your .env.local file.",
+      error:
+        "VITE_GEMINI_API_KEY is not set. Get a free key at aistudio.google.com/apikey and add it to your .env.local file.",
     };
   }
 
@@ -85,7 +87,9 @@ BRAND VOICE PROFILE:
     : "";
 
   const keyPointsGuide = request.key_points?.length
-    ? `Key points to cover:\n${request.key_points.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
+    ? `Key points to cover:\n${request.key_points
+        .map((p, i) => `${i + 1}. ${p}`)
+        .join("\n")}`
     : "";
 
   const promptMap: Record<string, string> = {
@@ -106,16 +110,14 @@ Keep it under 60 seconds total. Every word must earn its place.`,
 - headline: SEO-friendly, compelling title
 - intro: Hook the reader, state the problem
 - body: 3-5 main sections with subheadings and key points
-- conclusion: Summary + next steps for the reader
-Include suggested word count per section.`,
+- conclusion: Summary + next steps for the reader`,
 
-    newsletter: `Create an email newsletter script with:
+    newsletter: `Create an email newsletter with:
 - subject_line: High open-rate subject line (under 50 chars)
 - preview: Preview text (under 90 chars)
 - intro: Personal, warm opening
 - body: Main value or story
-- cta: Single clear action
-Keep it scannable with short paragraphs.`,
+- cta: Single clear action`,
 
     social: `Create a social media post with:
 - hook: First line that stops the scroll
@@ -132,17 +134,16 @@ ${brandContext}
 IMPORTANT RULES:
 - Write in the creator's voice, not generic AI tone
 - Be specific and actionable, not vague
-- Include natural pauses and emphasis markers
 - Every section must have a clear purpose
-- Respond ONLY with valid JSON, no markdown backticks
+- Respond ONLY with valid JSON — no markdown, no backticks, no explanation
 
-Response format (strict JSON):
+Strict JSON response format:
 {
   "title": "Compelling title for this content",
   "sections": [
     {
       "type": "hook|intro|body|cta|outro|subject_line|preview|headline|hashtags",
-      "label": "Human-readable label for this section",
+      "label": "Human-readable label",
       "content": "The actual script/content text",
       "duration_sec": 15
     }
@@ -161,34 +162,41 @@ ${request.tone ? `Tone: ${request.tone}` : ""}
 ${promptMap[request.content_type] || promptMap.video}`;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+        system_instruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            parts: [{ text: userPrompt }],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: 4096,
+          temperature: 0.7,
+        },
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return {
-        data: null,
-        error: `API error: ${response.status} ${
-          (errorData as { error?: { message?: string } })?.error?.message || ""
-        }`,
-      };
+      const err = await response.json().catch(() => ({}));
+      const msg =
+        (err as { error?: { message?: string } })?.error?.message ||
+        `HTTP ${response.status}`;
+      return { data: null, error: `Gemini API error: ${msg}` };
     }
 
-    const result = await response.json() as { content?: Array<{ text?: string }> };
-    const text = result.content?.[0]?.text || "";
+    const result = await response.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    // Strip any accidental markdown fences
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean) as GeneratedScript;
 
@@ -196,7 +204,8 @@ ${promptMap[request.content_type] || promptMap.video}`;
   } catch (err) {
     return {
       data: null,
-      error: err instanceof Error ? err.message : "Script generation failed",
+      error:
+        err instanceof Error ? err.message : "Script generation failed",
     };
   }
 }
