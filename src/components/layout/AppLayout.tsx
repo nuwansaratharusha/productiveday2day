@@ -2,14 +2,14 @@
 // ProductiveDay — App Layout with Bottom Nav
 // =============================================================
 import { NavLink, useLocation } from "react-router-dom";
-import { CalendarDays, LayoutGrid, Flame, BarChart3, User } from "lucide-react";
+import { CalendarDays, LayoutGrid, Flame, BarChart3, User, Clapperboard } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutGrid, label: "Planner" },
   { to: "/habits", icon: Flame, label: "Habits" },
-  { to: "/calendar", icon: CalendarDays, label: "Calendar" },
+  { to: "/creator", icon: Clapperboard, label: "Creator" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/profile", icon: User, label: "Profile" },
 ];
