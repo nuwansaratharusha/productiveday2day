@@ -1,7 +1,8 @@
 // =============================================================
 // ProductiveDay — AI Script Generation (Vite Browser Client)
-// Uses Google Gemini API (free tier) via VITE_GEMINI_API_KEY
-// Get your free key at: https://aistudio.google.com/apikey
+// Uses Groq API (free tier) via VITE_GROQ_API_KEY
+// Get your free key at: https://console.groq.com
+// 14,400 free requests/day — no billing required
 // =============================================================
 
 import { createClient } from "@/lib/supabase/client";
@@ -35,12 +36,12 @@ export interface GeneratedScript {
 export async function generateScript(
   request: ScriptRequest
 ): Promise<{ data: GeneratedScript | null; error: string | null }> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   if (!apiKey) {
     return {
       data: null,
       error:
-        "VITE_GEMINI_API_KEY is not set. Get a free key at aistudio.google.com/apikey and add it to your .env.local file.",
+        "VITE_GROQ_API_KEY is not set. Get a free key at console.groq.com and add it to your .env.local file.",
     };
   }
 
@@ -131,26 +132,24 @@ Optimize for ${request.platform}.`,
 
 ${brandContext}
 
-IMPORTANT RULES:
-- Write in the creator's voice, not generic AI tone
-- Be specific and actionable, not vague
-- Every section must have a clear purpose
-- Respond ONLY with valid JSON — no markdown, no backticks, no explanation
+CRITICAL: Respond ONLY with valid JSON. No markdown, no backticks, no explanation before or after. Just the raw JSON object.
 
-Strict JSON response format:
+Exact response format:
 {
   "title": "Compelling title for this content",
   "sections": [
     {
-      "type": "hook|intro|body|cta|outro|subject_line|preview|headline|hashtags",
-      "label": "Human-readable label",
-      "content": "The actual script/content text",
-      "duration_sec": 15
+      "type": "hook",
+      "label": "Hook",
+      "content": "The actual script text here",
+      "duration_sec": 10
     }
   ],
   "estimated_duration_sec": 180,
   "word_count": 450
-}`;
+}
+
+Section types to use: hook, intro, body, cta, outro, subject_line, preview, headline, hashtags`;
 
   const userPrompt = `Create a ${request.content_type} script for ${request.platform}.
 
@@ -162,24 +161,21 @@ ${request.tone ? `Tone: ${request.tone}` : ""}
 ${promptMap[request.content_type] || promptMap.video}`;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    const response = await fetch(url, {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: systemPrompt }],
-        },
-        contents: [
-          {
-            parts: [{ text: userPrompt }],
-          },
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
         ],
-        generationConfig: {
-          maxOutputTokens: 4096,
-          temperature: 0.7,
-        },
+        max_tokens: 4096,
+        temperature: 0.7,
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -188,15 +184,13 @@ ${promptMap[request.content_type] || promptMap.video}`;
       const msg =
         (err as { error?: { message?: string } })?.error?.message ||
         `HTTP ${response.status}`;
-      return { data: null, error: `Gemini API error: ${msg}` };
+      return { data: null, error: `Groq API error: ${msg}` };
     }
 
     const result = await response.json() as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      choices?: Array<{ message?: { content?: string } }>;
     };
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    // Strip any accidental markdown fences
+    const text = result.choices?.[0]?.message?.content || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean) as GeneratedScript;
 
@@ -204,8 +198,7 @@ ${promptMap[request.content_type] || promptMap.video}`;
   } catch (err) {
     return {
       data: null,
-      error:
-        err instanceof Error ? err.message : "Script generation failed",
+      error: err instanceof Error ? err.message : "Script generation failed",
     };
   }
 }
