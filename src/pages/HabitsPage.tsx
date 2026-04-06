@@ -132,27 +132,30 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
   const [icon, setIcon] = useState(ICONS[0]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg mx-auto bg-background border border-border/60 rounded-t-2xl flex flex-col"
-        style={{ maxHeight: "90dvh" }}>
+    <div className="fixed inset-0 z-[70] flex items-end">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full bg-background rounded-t-3xl flex flex-col overflow-hidden"
+        style={{ maxHeight: "85vh" }}>
 
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-9 h-1 rounded-full bg-muted-foreground/20" />
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
         </div>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
-          <h3 className="text-base font-bold text-foreground">New Habit</h3>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground">
+          <div>
+            <h3 className="text-base font-bold text-foreground">New Habit</h3>
+            <p className="text-xs text-muted-foreground">Build a streak, one day at a time</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-5 pb-2">
-        <div className="space-y-3">
+        <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-2">
+        <div className="space-y-4">
           <input
             autoFocus
             value={title}
@@ -206,7 +209,7 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
         </div>
 
         {/* Sticky footer button */}
-        <div className="flex-shrink-0 px-5 pt-3 pb-6 border-t border-border/30">
+        <div className="flex-shrink-0 px-5 pt-3 pb-8 border-t border-border/30 bg-background">
           <button
             disabled={!title.trim()}
             onClick={() => {
@@ -214,9 +217,9 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
               onAdd({ title: title.trim(), description: desc || null, color, icon, target_count: 1, frequency: "daily" });
               onClose();
             }}
-            className="w-full py-3 rounded-xl text-sm font-semibold gradient-brand text-white disabled:opacity-40 transition-all active:scale-[0.98]"
+            className="w-full py-3.5 rounded-2xl text-sm font-bold bg-primary text-primary-foreground disabled:opacity-40 transition-all active:scale-[0.98] shadow-sm"
           >
-            Add Habit
+            Add Habit ✓
           </button>
         </div>
       </div>

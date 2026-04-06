@@ -86,7 +86,7 @@ function PieceCard({ piece, stage, onMove, onDelete, onScript }: {
 
       {/* Move menu */}
       {showMoveMenu && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowMoveMenu(false)}>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowMoveMenu(false)}>
           <div className="bg-background rounded-t-3xl w-full max-w-lg p-5 pb-8" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center mb-4"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
             <p className="text-sm font-bold text-foreground mb-3">Move to stage</p>
@@ -127,8 +127,8 @@ function AddSheet({ open, onClose, onSave }: { open: boolean; onClose: () => voi
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-background rounded-t-3xl flex flex-col" style={{ maxHeight: "90dvh" }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-background rounded-t-3xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-center pt-3 pb-2 shrink-0"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
 
         <div className="px-5 pb-2 shrink-0">
@@ -136,7 +136,7 @@ function AddSheet({ open, onClose, onSave }: { open: boolean; onClose: () => voi
           <p className="text-xs text-muted-foreground mt-0.5">Add a new piece to your pipeline</p>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+        <div className="overflow-y-auto flex-1 min-h-0 px-5 py-4 space-y-5">
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="What are you creating?" autoFocus
             className="w-full text-base font-semibold bg-transparent border-b-2 border-border focus:border-primary pb-2 text-foreground placeholder:text-muted-foreground/40 focus:outline-none transition-colors" />
 
@@ -171,7 +171,7 @@ function AddSheet({ open, onClose, onSave }: { open: boolean; onClose: () => voi
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-border/30 shrink-0">
+        <div className="px-5 py-4 pb-8 border-t border-border/30 shrink-0 bg-background">
           <button onClick={handleSave} disabled={!title.trim() || saving}
             className="w-full py-3.5 rounded-2xl bg-primary text-primary-foreground font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40 shadow-sm">
             {saving ? "Adding..." : "Add to Pipeline →"}
