@@ -95,11 +95,14 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
   const [loading, setLoading] = useState(true);
 
   const rowIdsRef = useRef<Set<string>>(new Set());
+  // Suppress realtime refetch when we ourselves just mutated the DB
+  const suppressRealtimeRef = useRef(false);
 
   // ── Fetch blocks for selectedDate ──────────────────────────
-  const fetchBlocks = useCallback(async () => {
+  // silent=true → background refresh (no loading skeleton, used by realtime)
+  const fetchBlocks = useCallback(async (silent = false) => {
     if (!user) { setLoading(false); return; }
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     // Fetch ALL planner blocks (need all dates for auto-copy logic)
     const { data, error } = await supabase
@@ -184,13 +187,15 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
     }
   }, [user, fetchBlocks]);
 
-  // Realtime subscription
+  // Realtime subscription — silent background refresh so no skeleton flash.
+  // Skipped entirely when suppressRealtimeRef is true (we just mutated).
   useEffect(() => {
     if (!user) return;
     const channel = supabase
       .channel(`planner-${user.id}-${selectedDate}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
-        fetchBlocks();
+        if (suppressRealtimeRef.current) return; // our own write — ignore
+        fetchBlocks(true); // silent: no loading skeleton
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -201,8 +206,9 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
     async (newBlocks: TimeBlockData[]) => {
       if (!user) return;
 
-      // Optimistic update
+      // Optimistic update — no loading skeleton
       setBlocks(newBlocks);
+      suppressRealtimeRef.current = true;
 
       const existingIds = rowIdsRef.current;
       const incomingUUIDs = newBlocks.filter(b => isUUID(b.id)).map(b => b.id);
@@ -246,6 +252,7 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
       );
 
       rowIdsRef.current = new Set(newBlocks.filter(b => isUUID(b.id)).map(b => b.id));
+      setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
     },
     [user, supabase, selectedDate]
   );
@@ -256,10 +263,12 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
       if (!user) return;
       const currentlyDone = !!completed[blockId];
 
-      // Optimistic update
+      // Optimistic update — instant UI, no flicker
       setCompleted(prev => ({ ...prev, [blockId]: !currentlyDone }));
 
       if (isUUID(blockId)) {
+        // Suppress realtime so our own write doesn't trigger a reload
+        suppressRealtimeRef.current = true;
         await supabase
           .from("tasks")
           .update({
@@ -268,6 +277,8 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
           })
           .eq("id", blockId)
           .eq("user_id", user.id);
+        // Re-enable after a short delay (realtime events can arrive a bit late)
+        setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
       }
     },
     [user, supabase, completed]
