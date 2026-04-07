@@ -291,4 +291,34 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 8px; }
 
+/* ── Mobile / Touch optimisations ─────────────────────────── */
+/* Prevent double-tap zoom on buttons */
+button, a { touch-action: manipulation; }
+
+/* Smooth momentum scrolling everywhere */
+* { -webkit-overflow-scrolling: touch; }
+
+/* Hide horizontal scrollbar on stage selectors */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* Safe-area bottom padding utility */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
+.mb-safe { margin-bottom:  env(safe-area-inset-bottom, 12px); }
+
+/* Minimum tap-target size on interactive elements */
+button:not([class*="h-"]):not([class*="w-"]) { min-height: 36px; }
+
+/* Prevent text size bump on iOS orientation change */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* Remove iOS input shadows */
+input, textarea, select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 #root { max-width: 100%; margin: 0; padding: 0; text-align: left; }
