@@ -40,6 +40,7 @@ export async function createContentPiece(piece: {
   tags?: string[];
   notes?: string;
   checklist?: { label: string; done: boolean }[];
+  priority?: "high" | "medium" | "low";
 }) {
   const user = await getUser();
   if (!user) return { data: null, error: "Not authenticated" };
@@ -182,6 +183,40 @@ export async function updateScript(id: string, updates: Record<string, unknown>)
     .eq("id", id)
     .eq("user_id", user.id)
     .select()
+    .single();
+  return { data, error: error?.message || null };
+}
+
+export async function updateChecklist(id: string, checklist: { label: string; done: boolean }[]) {
+  const user = await getUser();
+  if (!user) return { error: "Not authenticated" };
+  const { error } = await supabase
+    .from("content_pieces")
+    .update({ checklist })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  return { error: error?.message || null };
+}
+
+export async function updateNotes(id: string, notes: string) {
+  const user = await getUser();
+  if (!user) return { error: "Not authenticated" };
+  const { error } = await supabase
+    .from("content_pieces")
+    .update({ notes })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  return { error: error?.message || null };
+}
+
+export async function getPieceFull(id: string) {
+  const user = await getUser();
+  if (!user) return { data: null, error: "Not authenticated" };
+  const { data, error } = await supabase
+    .from("content_pieces")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", user.id)
     .single();
   return { data, error: error?.message || null };
 }

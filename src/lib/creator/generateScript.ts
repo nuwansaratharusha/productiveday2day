@@ -33,6 +33,83 @@ export interface GeneratedScript {
   word_count: number;
 }
 
+// ── Production Brief Generator ─────────────────────────────
+
+export interface ProductionBrief {
+  hook_options: string[];
+  target_audience: string;
+  key_messages: string[];
+  tone_and_style: string;
+  production_notes: string;
+  shot_list?: string[];
+  caption_draft?: string;
+  hashtags?: string[];
+}
+
+export async function generateBrief(piece: {
+  title: string;
+  content_type: string;
+  platforms?: string[];
+  notes?: string;
+}): Promise<{ data: ProductionBrief | null; error: string | null }> {
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  if (!apiKey) {
+    return { data: null, error: "VITE_GROQ_API_KEY is not set. Get a free key at console.groq.com." };
+  }
+
+  const platforms = piece.platforms?.join(", ") || "general";
+  const systemPrompt = `You are a professional content strategist and production director. Generate a concise, actionable production brief. Return ONLY valid JSON — no markdown, no extra text.`;
+
+  const userPrompt = `Generate a production brief for this content piece:
+Title: "${piece.title}"
+Type: ${piece.content_type}
+Platform(s): ${platforms}
+${piece.notes ? `Creator notes: ${piece.notes}` : ""}
+
+Return JSON with this exact structure:
+{
+  "hook_options": ["hook 1 (max 15 words)", "hook 2", "hook 3"],
+  "target_audience": "one sentence describing ideal viewer/reader",
+  "key_messages": ["key point 1", "key point 2", "key point 3"],
+  "tone_and_style": "brief description of desired tone",
+  "production_notes": "specific technical/creative notes for production",
+  "shot_list": ["shot 1", "shot 2", "shot 3"],
+  "caption_draft": "engaging caption for social post (if applicable)",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
+}`;
+
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 1024,
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      return { data: null, error: (err as { error?: { message?: string } }).error?.message || `HTTP ${response.status}` };
+    }
+
+    const json = await response.json();
+    const content = json.choices?.[0]?.message?.content;
+    if (!content) return { data: null, error: "Empty response from AI" };
+
+    const brief = JSON.parse(content) as ProductionBrief;
+    return { data: brief, error: null };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : "Unknown error" };
+  }
+}
+
 export async function generateScript(
   request: ScriptRequest
 ): Promise<{ data: GeneratedScript | null; error: string | null }> {
