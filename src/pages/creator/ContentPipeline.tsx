@@ -237,20 +237,74 @@ export default function ContentPipeline() {
             </button>
           </div>
 
-          {/* Stage pills */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-            {STAGES.map(s => {
-              const count = pieces.filter(p => p.status === s.key).length;
-              const isActive = s.key === activeStage;
-              return (
-                <button key={s.key} onClick={() => setActiveStage(s.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${isActive ? `${s.bg} ${s.text}` : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                  <span>{s.emoji}</span>
-                  <span>{s.label}</span>
-                  {count > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-black/10 dark:bg-white/10" : "bg-background/60"}`}>{count}</span>}
-                </button>
-              );
-            })}
+          {/* Stage stepper */}
+          <div className="overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+            <div className="flex items-stretch gap-0 min-w-max">
+              {STAGES.map((s, idx) => {
+                const count = pieces.filter(p => p.status === s.key).length;
+                const isActive = s.key === activeStage;
+                const activeIdx = STAGES.findIndex(x => x.key === activeStage);
+                const isPast = idx < activeIdx;
+                return (
+                  <div key={s.key} className="flex items-center">
+                    <button
+                      onClick={() => setActiveStage(s.key)}
+                      className={`relative flex flex-col items-center gap-1 px-3.5 py-2 transition-all group min-w-[72px] rounded-xl ${
+                        isActive
+                          ? "bg-background shadow-sm border border-border/60"
+                          : isPast
+                          ? "hover:bg-muted/40"
+                          : "hover:bg-muted/30"
+                      }`}
+                    >
+                      {/* Stage icon */}
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base transition-all ${
+                        isActive ? `${s.bg} ring-1 ring-offset-1 ring-offset-background` : isPast ? "bg-muted/60" : "bg-muted/40"
+                      }`}
+                        style={isActive ? { ringColor: s.color } : {}}
+                      >
+                        {isPast && !isActive
+                          ? <span className="text-[10px] font-black text-muted-foreground">✓</span>
+                          : <span className={isActive ? "" : "opacity-50"}>{s.emoji}</span>
+                        }
+                      </div>
+
+                      {/* Label */}
+                      <span className={`text-[10px] font-bold whitespace-nowrap transition-colors ${
+                        isActive ? s.text : isPast ? "text-muted-foreground/60" : "text-muted-foreground/50"
+                      }`}>
+                        {s.label}
+                      </span>
+
+                      {/* Count badge */}
+                      {count > 0 && (
+                        <span className={`absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full flex items-center justify-center text-[9px] font-black px-1 ${
+                          isActive ? "text-white" : "bg-muted text-muted-foreground"
+                        }`}
+                          style={isActive ? { backgroundColor: s.color } : {}}
+                        >
+                          {count}
+                        </span>
+                      )}
+
+                      {/* Active underline */}
+                      {isActive && (
+                        <div className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
+                      )}
+                    </button>
+
+                    {/* Connector arrow */}
+                    {idx < STAGES.length - 1 && (
+                      <div className={`w-4 h-px shrink-0 transition-colors ${
+                        idx < STAGES.findIndex(x => x.key === activeStage)
+                          ? "bg-border/60"
+                          : "bg-border/30"
+                      }`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -279,14 +333,27 @@ export default function ContentPipeline() {
         )}
 
         {/* Stage header */}
-        <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ backgroundColor: `${stage.color}15` }}>
-          <span className="text-2xl">{stage.emoji}</span>
-          <div>
-            <p className="text-sm font-bold" style={{ color: stage.color }}>{stage.label}</p>
-            <p className="text-xs text-muted-foreground">{stagePieces.length} piece{stagePieces.length !== 1 ? "s" : ""} here</p>
+        <div className="flex items-center gap-3 mb-4 px-4 py-3 rounded-2xl border border-border/40 bg-card/60 backdrop-blur-sm">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${stage.bg}`}>
+            {stage.emoji}
           </div>
-          <div className="ml-auto">
-            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: stage.color }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-foreground">{stage.label}</p>
+            <p className="text-xs text-muted-foreground">
+              {stagePieces.length} piece{stagePieces.length !== 1 ? "s" : ""} · Step {STAGES.findIndex(s => s.key === activeStage) + 1} of {STAGES.length}
+            </p>
+          </div>
+          {/* Pipeline mini-progress */}
+          <div className="flex gap-0.5 shrink-0">
+            {STAGES.map((s, i) => (
+              <div key={s.key} className="w-2 h-2 rounded-full transition-all"
+                style={{
+                  backgroundColor: i <= STAGES.findIndex(x => x.key === activeStage) ? stage.color : undefined,
+                  opacity: i <= STAGES.findIndex(x => x.key === activeStage) ? (i === STAGES.findIndex(x => x.key === activeStage) ? 1 : 0.35) : 0.12,
+                  backgroundColor: i <= STAGES.findIndex(x => x.key === activeStage) ? stage.color : '#94a3b8',
+                } as React.CSSProperties}
+              />
+            ))}
           </div>
         </div>
 

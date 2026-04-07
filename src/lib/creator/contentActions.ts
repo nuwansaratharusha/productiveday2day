@@ -20,7 +20,7 @@ export async function getContentPipeline(status?: string) {
 
   let query = supabase
     .from("content_pieces")
-    .select("*, script:scripts(*), shoot:shoots(*)")
+    .select("*")
     .eq("user_id", user.id)
     .neq("status", "archived")
     .order("sort_order")
