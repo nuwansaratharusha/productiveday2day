@@ -1,12 +1,17 @@
 // =============================================================
-// ProductiveDay — Planner Blocks Hook (Supabase-backed)
+// ProductiveDay — Planner Blocks Hook (Date-Specific v2)
 // =============================================================
-// Uses useAuth() context — no duplicate getUser() network calls.
-// Encoding convention (stored in `tags` column):
-//   tags[0] = "planner-block"  (sentinel)
-//   tags[1] = dayType          → "weekday" | "weekend"
-//   tags[2] = timeStr          → "9:00 AM – 10:00 AM"
-//   tags[3] = category         → "Personal"
+// Each calendar day has its own independent set of blocks.
+// History is fully preserved — no midnight reset.
+//
+// Encoding:
+//   tags[0] = "planner-block"   (sentinel)
+//   tags[1] = "YYYY-MM-DD"      (specific date, e.g. "2026-04-07")
+//   tags[2] = timeStr           → "9:00 AM – 10:00 AM"
+//   tags[3] = category          → "Personal"
+//
+// Auto-copy: when navigating to a date with no blocks, copies
+// from the most recent past date that has blocks.
 // =============================================================
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -19,19 +24,12 @@ const PLANNER_TAG = "planner-block";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-function isToday(isoString: string | null): boolean {
-  if (!isoString) return false;
-  const d = new Date(isoString);
-  const t = new Date();
-  return (
-    d.getFullYear() === t.getFullYear() &&
-    d.getMonth() === t.getMonth() &&
-    d.getDate() === t.getDate()
-  );
-}
-
 function isUUID(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function isDateString(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
 function taskToBlock(task: {
@@ -56,7 +54,7 @@ function taskToBlock(task: {
 
 function blockToInsert(
   block: TimeBlockData,
-  dayType: "weekday" | "weekend",
+  dateStr: string,
   index: number,
   userId: string
 ): TaskInsert & { user_id: string } {
@@ -64,47 +62,46 @@ function blockToInsert(
     title: block.block,
     description: block.desc || null,
     estimated_minutes: block.dur,
-    tags: [PLANNER_TAG, dayType, block.time, block.cat],
+    tags: [PLANNER_TAG, dateStr, block.time, block.cat],
     sort_order: index,
     status: "todo",
     user_id: userId,
   };
 }
 
-// ─── Hook ─────────────────────────────────────────────────────
+// ─── Hook Interface ────────────────────────────────────────────
 
 export interface UsePlannerBlocksReturn {
-  allBlocks: { weekday: TimeBlockData[]; weekend: TimeBlockData[] };
+  blocks: TimeBlockData[];
   completed: Record<string, boolean>;
   hasBlocks: boolean;
+  hasAnyBlocks: boolean;
   loading: boolean;
-  saveBlocks: (newBlocks: TimeBlockData[], dayType: "weekday" | "weekend") => Promise<void>;
+  saveBlocks: (newBlocks: TimeBlockData[]) => Promise<void>;
   toggleComplete: (blockId: string) => Promise<void>;
   bulkCreate: (schedule: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }) => Promise<void>;
+  clearAllBlocks: () => Promise<void>;
 }
 
-export function usePlannerBlocks(): UsePlannerBlocksReturn {
-  // Use auth context — no extra network request
-  const { user } = useAuth();
+// ─── Hook ─────────────────────────────────────────────────────
 
-  // Single supabase client instance
+export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
+  const { user } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
-  const [allBlocks, setAllBlocks] = useState<{ weekday: TimeBlockData[]; weekend: TimeBlockData[] }>(
-    { weekday: [], weekend: [] }
-  );
+  const [blocks, setBlocks] = useState<TimeBlockData[]>([]);
   const [completed, setCompleted] = useState<Record<string, boolean>>({});
+  const [hasAnyBlocks, setHasAnyBlocks] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const rowIds = useRef<{ weekday: Set<string>; weekend: Set<string> }>({
-    weekday: new Set(),
-    weekend: new Set(),
-  });
+  const rowIdsRef = useRef<Set<string>>(new Set());
 
-  // ── Fetch ──────────────────────────────────────────────────
+  // ── Fetch blocks for selectedDate ──────────────────────────
   const fetchBlocks = useCallback(async () => {
     if (!user) { setLoading(false); return; }
+    setLoading(true);
 
+    // Fetch ALL planner blocks (need all dates for auto-copy logic)
     const { data, error } = await supabase
       .from("tasks")
       .select("id, title, description, estimated_minutes, tags, status, completed_at, sort_order")
@@ -114,53 +111,71 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
 
     if (error || !data) { setLoading(false); return; }
 
-    // ── Daily reset: any block marked done on a PREVIOUS day gets reset ──
-    const staleIds = data
-      .filter((t) => t.status === "done" && !isToday(t.completed_at))
-      .map((t) => t.id);
+    // Only consider date-specific blocks (tags[1] is YYYY-MM-DD)
+    const dateTasks = data.filter(t => isDateString((t.tags || [])[1] || ""));
 
-    if (staleIds.length > 0) {
-      await supabase
-        .from("tasks")
-        .update({ status: "todo", completed_at: null })
-        .in("id", staleIds)
-        .eq("user_id", user.id);
-      // Re-fetch with clean state
-      fetchBlocks();
-      return;
+    setHasAnyBlocks(dateTasks.length > 0);
+
+    // Get blocks for the selected date
+    let dayTasks = dateTasks.filter(t => (t.tags || [])[1] === selectedDate);
+
+    // Auto-copy from most recent past date if this date has no blocks
+    if (dayTasks.length === 0 && dateTasks.length > 0) {
+      // Find unique dates earlier than or equal to selectedDate
+      const pastDates = [
+        ...new Set(
+          dateTasks
+            .map(t => (t.tags || [])[1] as string)
+            .filter(d => !!d && d < selectedDate)
+        ),
+      ].sort().reverse();
+
+      if (pastDates.length > 0) {
+        const mostRecentDate = pastDates[0];
+        const sourceTasks = dateTasks.filter(t => (t.tags || [])[1] === mostRecentDate);
+
+        // Insert copies for selectedDate
+        const inserts = sourceTasks.map((t, i) => ({
+          title: t.title,
+          description: t.description,
+          estimated_minutes: t.estimated_minutes,
+          tags: [PLANNER_TAG, selectedDate, (t.tags || [])[2] || "", (t.tags || [])[3] || "Personal"],
+          sort_order: i,
+          status: "todo" as const,
+          user_id: user.id,
+        }));
+
+        const { data: inserted } = await supabase
+          .from("tasks")
+          .insert(inserts)
+          .select("id, title, description, estimated_minutes, tags, status, completed_at, sort_order");
+
+        if (inserted) {
+          dayTasks = inserted;
+          setHasAnyBlocks(true);
+        }
+      }
     }
 
-    const weekdayBlocks: TimeBlockData[] = [];
-    const weekendBlocks: TimeBlockData[] = [];
+    const newBlocks: TimeBlockData[] = [];
     const completedMap: Record<string, boolean> = {};
-    const newRowIds = { weekday: new Set<string>(), weekend: new Set<string>() };
+    const newRowIds = new Set<string>();
 
-    for (const task of data) {
-      const tags: string[] = task.tags || [];
-      const dayType = tags[1]; // "weekday" | "weekend"
-      const block = taskToBlock(task);
-
-      if (dayType === "weekend") {
-        weekendBlocks.push(block);
-        newRowIds.weekend.add(task.id);
-      } else {
-        weekdayBlocks.push(block);
-        newRowIds.weekday.add(task.id);
-      }
-
-      // Only mark as done if completed TODAY
-      if (task.status === "done" && isToday(task.completed_at)) {
+    for (const task of dayTasks) {
+      newBlocks.push(taskToBlock(task));
+      newRowIds.add(task.id);
+      if (task.status === "done") {
         completedMap[task.id] = true;
       }
     }
 
-    rowIds.current = newRowIds;
-    setAllBlocks({ weekday: weekdayBlocks, weekend: weekendBlocks });
+    rowIdsRef.current = newRowIds;
+    setBlocks(newBlocks);
     setCompleted(completedMap);
     setLoading(false);
-  }, [user, supabase]);
+  }, [user, supabase, selectedDate]);
 
-  // Fetch when user becomes available
+  // Fetch when user or date changes
   useEffect(() => {
     if (user) {
       fetchBlocks();
@@ -169,107 +184,80 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
     }
   }, [user, fetchBlocks]);
 
-  // ── Midnight day-change watcher ────────────────────────────
-  // If the app is left open overnight, reset completed state when date changes
-  useEffect(() => {
-    const checkDayChange = () => {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const lastStr = sessionStorage.getItem("pd2d-day");
-      if (lastStr && lastStr !== todayStr) {
-        setCompleted({});   // clear UI immediately
-        fetchBlocks();      // DB reset happens inside fetchBlocks
-      }
-      sessionStorage.setItem("pd2d-day", todayStr);
-    };
-
-    checkDayChange();
-    const interval = setInterval(checkDayChange, 60_000); // check every minute
-    return () => clearInterval(interval);
-  }, [fetchBlocks]);
-
   // Realtime subscription
   useEffect(() => {
     if (!user) return;
-
     const channel = supabase
-      .channel(`planner-${user.id}`)
+      .channel(`planner-${user.id}-${selectedDate}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
         fetchBlocks();
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
-  }, [user, supabase, fetchBlocks]);
+  }, [user, supabase, fetchBlocks, selectedDate]);
 
   // ── saveBlocks ─────────────────────────────────────────────
   const saveBlocks = useCallback(
-    async (newBlocks: TimeBlockData[], dayType: "weekday" | "weekend") => {
+    async (newBlocks: TimeBlockData[]) => {
       if (!user) return;
 
       // Optimistic update
-      setAllBlocks((prev) => ({ ...prev, [dayType]: newBlocks }));
+      setBlocks(newBlocks);
 
-      const existingIds = rowIds.current[dayType];
-      const incomingUUIDs = newBlocks.filter((b) => isUUID(b.id)).map((b) => b.id);
+      const existingIds = rowIdsRef.current;
+      const incomingUUIDs = newBlocks.filter(b => isUUID(b.id)).map(b => b.id);
 
       // Delete removed rows
-      const toDelete = [...existingIds].filter((id) => !incomingUUIDs.includes(id));
+      const toDelete = [...existingIds].filter(id => !incomingUUIDs.includes(id));
       if (toDelete.length > 0) {
         await supabase.from("tasks").delete().in("id", toDelete).eq("user_id", user.id);
       }
 
       // Upsert each block
-      const promises = newBlocks.map(async (block, i) => {
-        if (isUUID(block.id)) {
-          await supabase
-            .from("tasks")
-            .update({
-              title: block.block,
-              description: block.desc || null,
-              estimated_minutes: block.dur,
-              tags: [PLANNER_TAG, dayType, block.time, block.cat],
-              sort_order: i,
-            })
-            .eq("id", block.id)
-            .eq("user_id", user.id);
-        } else {
-          const { data: inserted } = await supabase
-            .from("tasks")
-            .insert(blockToInsert(block, dayType, i, user.id))
-            .select("id")
-            .single();
+      await Promise.all(
+        newBlocks.map(async (block, i) => {
+          if (isUUID(block.id)) {
+            await supabase
+              .from("tasks")
+              .update({
+                title: block.block,
+                description: block.desc || null,
+                estimated_minutes: block.dur,
+                tags: [PLANNER_TAG, selectedDate, block.time, block.cat],
+                sort_order: i,
+              })
+              .eq("id", block.id)
+              .eq("user_id", user.id);
+          } else {
+            const { data: inserted } = await supabase
+              .from("tasks")
+              .insert(blockToInsert(block, selectedDate, i, user.id))
+              .select("id")
+              .single();
 
-          if (inserted?.id) {
-            const tempId = block.id;
-            const realId = inserted.id;
-            setAllBlocks((prev) => ({
-              ...prev,
-              [dayType]: prev[dayType].map((b) =>
-                b.id === tempId ? { ...b, id: realId } : b
-              ),
-            }));
-            rowIds.current[dayType].add(realId);
+            if (inserted?.id) {
+              const tempId = block.id;
+              const realId = inserted.id;
+              setBlocks(prev => prev.map(b => b.id === tempId ? { ...b, id: realId } : b));
+              rowIdsRef.current.add(realId);
+            }
           }
-        }
-      });
-
-      await Promise.all(promises);
-      rowIds.current[dayType] = new Set(
-        newBlocks.filter((b) => isUUID(b.id)).map((b) => b.id)
+        })
       );
+
+      rowIdsRef.current = new Set(newBlocks.filter(b => isUUID(b.id)).map(b => b.id));
     },
-    [user, supabase]
+    [user, supabase, selectedDate]
   );
 
   // ── toggleComplete ─────────────────────────────────────────
   const toggleComplete = useCallback(
     async (blockId: string) => {
       if (!user) return;
-
       const currentlyDone = !!completed[blockId];
 
-      // Optimistic update — instant UI response
-      setCompleted((prev) => ({ ...prev, [blockId]: !currentlyDone }));
+      // Optimistic update
+      setCompleted(prev => ({ ...prev, [blockId]: !currentlyDone }));
 
       if (isUUID(blockId)) {
         await supabase
@@ -286,50 +274,81 @@ export function usePlannerBlocks(): UsePlannerBlocksReturn {
   );
 
   // ── bulkCreate ─────────────────────────────────────────────
+  // Creates blocks for all 7 days of the current week at onboarding
   const bulkCreate = useCallback(
     async (schedule: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }) => {
       if (!user) return;
 
-      setAllBlocks(schedule);
+      // Find Monday of current week
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      monday.setHours(0, 0, 0, 0);
 
-      const allInserts = [
-        ...schedule.weekday.map((b, i) => blockToInsert(b, "weekday", i, user.id)),
-        ...schedule.weekend.map((b, i) => blockToInsert(b, "weekend", i, user.id)),
-      ];
+      const allInserts: (TaskInsert & { user_id: string })[] = [];
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        const dateStr = date.toISOString().slice(0, 10);
+        const dayOfW = date.getDay();
+        const isWeekend = dayOfW === 0 || dayOfW === 6;
+        const template = isWeekend ? schedule.weekend : schedule.weekday;
+
+        template.forEach((block, j) => {
+          allInserts.push(blockToInsert(block, dateStr, j, user.id));
+        });
+      }
 
       if (allInserts.length === 0) return;
 
       const { data: inserted } = await supabase
         .from("tasks")
         .insert(allInserts)
-        .select("id, tags, sort_order");
+        .select("id, title, description, estimated_minutes, tags, status, completed_at, sort_order");
 
       if (inserted) {
-        const weekdayBlocks: TimeBlockData[] = [];
-        const weekendBlocks: TimeBlockData[] = [];
-
-        for (const row of inserted) {
-          const tags: string[] = row.tags || [];
-          const dayType = tags[1];
-          const src =
-            dayType === "weekend"
-              ? schedule.weekend[row.sort_order]
-              : schedule.weekday[row.sort_order];
-          if (!src) continue;
-          const block: TimeBlockData = { ...src, id: row.id };
-          if (dayType === "weekend") weekendBlocks.push(block);
-          else weekdayBlocks.push(block);
-        }
-
-        setAllBlocks({ weekday: weekdayBlocks, weekend: weekendBlocks });
-        rowIds.current.weekday = new Set(weekdayBlocks.map((b) => b.id));
-        rowIds.current.weekend = new Set(weekendBlocks.map((b) => b.id));
+        setHasAnyBlocks(true);
+        // Show blocks for selectedDate
+        const dayBlocks = inserted
+          .filter(t => (t.tags || [])[1] === selectedDate)
+          .map(t => taskToBlock(t));
+        setBlocks(dayBlocks);
+        rowIdsRef.current = new Set(dayBlocks.map(b => b.id));
       }
     },
-    [user, supabase]
+    [user, supabase, selectedDate]
   );
 
-  const hasBlocks = allBlocks.weekday.length > 0 || allBlocks.weekend.length > 0;
+  // ── clearAllBlocks ─────────────────────────────────────────
+  // Deletes ALL planner blocks for this user (for reset/onboarding)
+  const clearAllBlocks = useCallback(async () => {
+    if (!user) return;
 
-  return { allBlocks, completed, hasBlocks, loading, saveBlocks, toggleComplete, bulkCreate };
+    await supabase
+      .from("tasks")
+      .delete()
+      .eq("user_id", user.id)
+      .contains("tags", [PLANNER_TAG]);
+
+    setBlocks([]);
+    setCompleted({});
+    setHasAnyBlocks(false);
+    rowIdsRef.current = new Set();
+  }, [user, supabase]);
+
+  const hasBlocks = blocks.length > 0;
+
+  return {
+    blocks,
+    completed,
+    hasBlocks,
+    hasAnyBlocks,
+    loading,
+    saveBlocks,
+    toggleComplete,
+    bulkCreate,
+    clearAllBlocks,
+  };
 }

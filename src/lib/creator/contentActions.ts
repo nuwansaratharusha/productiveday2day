@@ -186,6 +186,25 @@ export async function updateScript(id: string, updates: Record<string, unknown>)
   return { data, error: error?.message || null };
 }
 
+export async function deleteScript(id: string) {
+  const user = await getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // Unlink from content_pieces if referenced
+  await supabase
+    .from("content_pieces")
+    .update({ script_id: null })
+    .eq("script_id", id)
+    .eq("user_id", user.id);
+
+  const { error } = await supabase
+    .from("scripts")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  return { error: error?.message || null };
+}
+
 export async function getScripts(contentPieceId?: string) {
   const user = await getUser();
   if (!user) return { data: null, error: "Not authenticated" };

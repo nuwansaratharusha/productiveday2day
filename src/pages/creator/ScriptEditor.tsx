@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CreatorLayout } from "@/components/creator/CreatorLayout";
-import { getScripts, createScript, updateScript } from "@/lib/creator/contentActions";
+import { getScripts, createScript, updateScript, deleteScript } from "@/lib/creator/contentActions";
 import { generateScript, type ScriptRequest, type ScriptSection } from "@/lib/creator/generateScript";
 
 interface Script {
@@ -235,6 +235,14 @@ export default function ScriptEditor() {
     setSaving(false);
   }
 
+  async function handleDelete(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Delete this script? This can't be undone.")) return;
+    setScripts(prev => prev.filter(s => s.id !== id));
+    if (active?.id === id) { setActive(null); setView("list"); }
+    await deleteScript(id);
+  }
+
   function copyAll() {
     if (!active) return;
     navigator.clipboard.writeText(active.sections.map(s => `## ${s.label}\n\n${s.content}`).join("\n\n---\n\n"));
@@ -355,7 +363,10 @@ export default function ScriptEditor() {
                           {script.estimated_duration_sec && <><span>·</span><span>⏱ {fmt(script.estimated_duration_sec)}</span></>}
                         </div>
                       </div>
-                      <span className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0 mt-1">→</span>
+                      <button onClick={(e) => handleDelete(script.id, e)}
+                        className="px-2 py-1.5 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all text-xs shrink-0">
+                        ✕
+                      </button>
                     </div>
                   </button>
                 ))}

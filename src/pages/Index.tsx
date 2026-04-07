@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, Palette, RotateCcw } from "lucide-react";
 import { MigrationBanner } from "@/lib/migration/MigrationBanner";
 import { useDragReorder } from "@/hooks/useDragReorder";
@@ -23,6 +23,16 @@ import {
 } from "@/data/plannerData";
 import { generateSmartSchedule } from "@/lib/smartScheduleGenerator";
 import { recalculateTimes } from "@/lib/scheduleGenerator";
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function getSelectedDate(selectedDay: number, defaultDay: number): string {
+  const today = new Date();
+  const diff = selectedDay - defaultDay;
+  const target = new Date(today);
+  target.setDate(today.getDate() + diff);
+  return target.toISOString().slice(0, 10);
+}
 
 // ── Skeleton block ───────────────────────────────────────────
 function BlockSkeleton({ delay = 0 }: { delay?: number }) {
@@ -49,9 +59,15 @@ function BlockSkeleton({ delay = 0 }: { delay?: number }) {
 
 export default function Index() {
   const today = new Date().getDay();
-  const defaultDay = today === 0 ? 6 : today - 1;
+  const defaultDay = today === 0 ? 6 : today - 1; // Mon=0 … Sun=6
   const [selectedDay, setSelectedDay] = useState(defaultDay);
   const isWeekend = selectedDay >= 5;
+
+  // Compute the actual calendar date for the selected day
+  const selectedDate = useMemo(
+    () => getSelectedDate(selectedDay, defaultDay),
+    [selectedDay, defaultDay]
+  );
 
   const [time, setTime] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,17 +76,14 @@ export default function Index() {
   const [categories, setCategoriesState] = useState<Record<string, Category>>(loadCategories);
 
   const {
-    allBlocks, completed, hasBlocks, loading,
-    saveBlocks, toggleComplete, bulkCreate,
-  } = usePlannerBlocks();
+    blocks, completed, hasAnyBlocks, loading,
+    saveBlocks, toggleComplete, bulkCreate, clearAllBlocks,
+  } = usePlannerBlocks(selectedDate);
 
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   useEffect(() => {
-    if (!loading) setOnboarded(hasBlocks);
-  }, [loading, hasBlocks]);
-
-  const blocks = isWeekend ? allBlocks.weekend : allBlocks.weekday;
-  const dayType: "weekday" | "weekend" = isWeekend ? "weekend" : "weekday";
+    if (!loading) setOnboarded(hasAnyBlocks);
+  }, [loading, hasAnyBlocks]);
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 60000);
@@ -84,10 +97,9 @@ export default function Index() {
   }, [bulkCreate]);
 
   const handleResetOnboarding = useCallback(async () => {
-    await saveBlocks([], "weekday");
-    await saveBlocks([], "weekend");
+    await clearAllBlocks();
     setOnboarded(false);
-  }, [saveBlocks]);
+  }, [clearAllBlocks]);
 
   const handleCategorySave = (cats: Record<string, Category>) => {
     setCategoriesState(cats);
@@ -102,8 +114,8 @@ export default function Index() {
     !activeBlock?.block.toLowerCase().includes("breakfast");
 
   const updateBlocks = useCallback(
-    (newBlocks: TimeBlockData[]) => saveBlocks(newBlocks, dayType),
-    [saveBlocks, dayType]
+    (newBlocks: TimeBlockData[]) => saveBlocks(newBlocks),
+    [saveBlocks]
   );
 
   const handleReorder = useCallback(

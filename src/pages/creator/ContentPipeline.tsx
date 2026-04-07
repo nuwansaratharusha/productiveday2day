@@ -188,10 +188,20 @@ export default function ContentPipeline() {
   const [loading, setLoading] = useState(true);
   const [activeStage, setActiveStage] = useState("idea");
   const [showAdd, setShowAdd] = useState(false);
+  const [missingTable, setMissingTable] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await getContentPipeline();
+    setLoadError(null);
+    const { data, error } = await getContentPipeline();
+    if (error) {
+      if (typeof error === "string" && (error.includes("does not exist") || error.includes("42P01"))) {
+        setMissingTable(true);
+      } else {
+        setLoadError(typeof error === "string" ? error : "Failed to load pipeline");
+      }
+    }
     if (data) setPieces(data as ContentPiece[]);
     setLoading(false);
   }, []);
@@ -246,6 +256,28 @@ export default function ContentPipeline() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 pt-4">
+
+        {/* Missing table banner */}
+        {missingTable && (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 p-4 mb-4">
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">⚠️ Database setup required</p>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mb-2">
+              The <code className="bg-amber-100 dark:bg-amber-900/50 rounded px-1">content_pieces</code> table is missing.
+              Run the creator SQL migrations in your Supabase dashboard to enable the pipeline.
+            </p>
+            <p className="text-[11px] text-amber-500/80">
+              Go to Supabase → SQL Editor → paste and run the creator schema migration.
+            </p>
+          </div>
+        )}
+
+        {/* Load error */}
+        {loadError && (
+          <div className="rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200/60 p-4 mb-4">
+            <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+          </div>
+        )}
+
         {/* Stage header */}
         <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ backgroundColor: `${stage.color}15` }}>
           <span className="text-2xl">{stage.emoji}</span>

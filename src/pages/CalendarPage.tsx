@@ -1,10 +1,9 @@
 // =============================================================
-// ProductiveDay — Calendar Page
+// ProductiveDay — Calendar Page (Date-Specific v2)
 // =============================================================
-// Monthly calendar showing daily completion snapshots.
-// Clicking a date expands the full schedule for that day.
-// Data is pulled from Supabase tasks where completed_at falls
-// on that date. End-of-day auto-snapshot stores completion state.
+// Shows a monthly calendar with per-day completion data.
+// Reads blocks where tags[1] is a specific date (YYYY-MM-DD).
+// Each day is independent — history is permanently preserved.
 // =============================================================
 
 import { useState, useEffect, useMemo } from "react";
@@ -25,6 +24,10 @@ interface DaySnapshot {
 
 function isoDate(y: number, m: number, d: number) {
   return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function isDateString(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
 function completionColor(rate: number) {
@@ -52,73 +55,46 @@ export default function CalendarPage() {
   const [snapshots, setSnapshots] = useState<Record<string, DaySnapshot>>({});
   const [loading, setLoading] = useState(true);
 
-  // ── Load all planner tasks for this month ──────────────────
+  // ── Load all planner tasks (all time) ─────────────────────
   useEffect(() => {
     if (!user) return;
     setLoading(true);
 
     async function load() {
-      const startDate = isoDate(viewYear, viewMonth, 1);
-      const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
-      const endDate = isoDate(viewYear, viewMonth, lastDay);
-
-      // Fetch all planner blocks (to show scheduled) — tasks have sort_order and tags
-      // We use completed_at to know what was done on which day
+      // Fetch ALL planner blocks — we need all dates to build snapshots
       const { data } = await supabase
         .from("tasks")
         .select("id, title, tags, status, completed_at, sort_order")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .contains("tags", [PLANNER_TAG])
         .order("sort_order", { ascending: true });
 
       if (!data) { setLoading(false); return; }
 
-      // Build per-day snapshots
-      // Each planner block: tags = [planner-block, dayType, time, cat]
-      // "done today" = status=done AND completed_at date = that date
+      // Group by date tag (tags[1] = "YYYY-MM-DD")
       const map: Record<string, DaySnapshot> = {};
 
-      // Build a date range for this month
-      for (let d = 1; d <= lastDay; d++) {
-        const dateStr = isoDate(viewYear, viewMonth, d);
-        const date = new Date(viewYear, viewMonth, d);
-        const dayOfWeek = date.getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const dayType = isWeekend ? "weekend" : "weekday";
+      for (const task of data) {
+        const tags: string[] = task.tags || [];
+        const dateTag = tags[1];
 
-        // Get blocks for this day type
-        const dayBlocks = data.filter((t) => {
-          const tags: string[] = t.tags || [];
-          return tags[1] === dayType;
-        });
+        // Only process date-specific blocks (ignore legacy weekday/weekend)
+        if (!isDateString(dateTag)) continue;
 
-        if (dayBlocks.length === 0) continue;
-
-        // Count completions: a block is "done" for this date if completed_at matches
-        const isPast = dateStr <= isoDate(today.getFullYear(), today.getMonth(), today.getDate());
-        const isToday2 = dateStr === isoDate(today.getFullYear(), today.getMonth(), today.getDate());
-
-        const blocks = dayBlocks.map((t) => {
-          const tags: string[] = t.tags || [];
-          const completedOn = t.completed_at
-            ? t.completed_at.slice(0, 10)
-            : null;
-          return {
-            id: t.id,
-            title: t.title,
-            time: tags[2] || "",
-            cat: tags[3] || "Personal",
-            done: completedOn === dateStr || (isToday2 && t.status === "done"),
-          };
-        });
-
-        if (isPast || isToday2) {
-          map[dateStr] = {
-            total: blocks.length,
-            done: blocks.filter((b) => b.done).length,
-            blocks,
-          };
+        if (!map[dateTag]) {
+          map[dateTag] = { total: 0, done: 0, blocks: [] };
         }
+
+        const isDone = task.status === "done";
+        map[dateTag].total += 1;
+        if (isDone) map[dateTag].done += 1;
+        map[dateTag].blocks.push({
+          id: task.id,
+          title: task.title,
+          time: tags[2] || "",
+          cat: tags[3] || "Personal",
+          done: isDone,
+        });
       }
 
       setSnapshots(map);
@@ -126,7 +102,7 @@ export default function CalendarPage() {
     }
 
     load();
-  }, [user, supabase, viewYear, viewMonth, today]);
+  }, [user, supabase]);
 
   // ── Calendar grid ──────────────────────────────────────────
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
@@ -146,11 +122,15 @@ export default function CalendarPage() {
 
   const selectedSnap = selectedDate ? snapshots[selectedDate] : null;
 
-  // Month stats
-  const monthTotal = Object.values(snapshots).reduce((s, d) => s + d.total, 0);
-  const monthDone = Object.values(snapshots).reduce((s, d) => s + d.done, 0);
+  // Month stats — filter to current view month only
+  const monthSnapshots = Object.entries(snapshots)
+    .filter(([date]) => date.startsWith(`${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`))
+    .map(([, snap]) => snap);
+
+  const monthTotal = monthSnapshots.reduce((s, d) => s + d.total, 0);
+  const monthDone = monthSnapshots.reduce((s, d) => s + d.done, 0);
   const monthRate = monthTotal > 0 ? Math.round((monthDone / monthTotal) * 100) : 0;
-  const activeDays = Object.values(snapshots).filter((d) => d.done > 0).length;
+  const activeDays = monthSnapshots.filter(d => d.done > 0).length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -165,33 +145,36 @@ export default function CalendarPage() {
             <span className="text-sm font-semibold text-foreground min-w-[120px] text-center">
               {MONTHS[viewMonth]} {viewYear}
             </span>
-            <button
-              onClick={nextMonth}
-              disabled={viewYear === today.getFullYear() && viewMonth === today.getMonth()}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-30"
-            >
+            <button onClick={nextMonth}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pt-4 pb-4">
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
 
-        {/* Month summary bento */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {[
-            { label: "Completion", value: `${monthRate}%`, icon: Zap, color: "text-primary" },
-            { label: "Blocks done", value: monthDone, icon: CheckCircle2, color: "text-emerald-400" },
-            { label: "Active days", value: activeDays, icon: Clock, color: "text-blue-400" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="rounded-xl border border-border/40 bg-card/60 p-3 backdrop-blur-sm">
-              <Icon className={cn("w-4 h-4 mb-1.5", color)} />
-              <div className="text-lg font-bold text-foreground">{value}</div>
-              <div className="text-[10px] text-muted-foreground">{label}</div>
-            </div>
-          ))}
-        </div>
+        {/* Month summary */}
+        {loading ? (
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[
+              { label: "Completion", value: `${monthRate}%`, icon: Zap, color: "text-primary" },
+              { label: "Blocks done", value: monthDone, icon: CheckCircle2, color: "text-emerald-400" },
+              { label: "Active days", value: activeDays, icon: Clock, color: "text-blue-400" },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div key={label} className="rounded-xl border border-border/40 bg-card/60 p-3 backdrop-blur-sm">
+                <Icon className={cn("w-4 h-4 mb-1.5", color)} />
+                <div className="text-lg font-bold text-foreground">{value}</div>
+                <div className="text-[10px] text-muted-foreground">{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Calendar grid */}
         <div className="rounded-xl border border-border/40 bg-card/40 backdrop-blur-sm overflow-hidden mb-4">
@@ -215,21 +198,20 @@ export default function CalendarPage() {
               const dateStr = isoDate(viewYear, viewMonth, day);
               const snap = snapshots[dateStr];
               const isToday2 = dateStr === todayStr;
-              const isFuture = dateStr > todayStr;
               const isSelected = selectedDate === dateStr;
-              const rate = snap ? snap.done / snap.total : 0;
+              const rate = snap ? snap.done / Math.max(snap.total, 1) : 0;
 
               return (
                 <button
                   key={day}
-                  onClick={() => !isFuture && snap && setSelectedDate(isSelected ? null : dateStr)}
-                  disabled={isFuture || !snap}
+                  onClick={() => snap && setSelectedDate(isSelected ? null : dateStr)}
+                  disabled={!snap}
                   className={cn(
                     "h-12 flex flex-col items-center justify-center gap-0.5 border-b border-r border-border/20 transition-all",
                     col === 6 && "border-r-0",
-                    !isFuture && snap && "cursor-pointer hover:bg-muted/30",
+                    snap && "cursor-pointer hover:bg-muted/30",
                     isSelected && "bg-primary/10",
-                    isFuture && "opacity-30"
+                    !snap && "opacity-30"
                   )}
                 >
                   <span className={cn(
@@ -263,9 +245,9 @@ export default function CalendarPage() {
               </div>
               <div className={cn(
                 "px-2.5 py-1 rounded-lg text-xs font-semibold border",
-                completionColor(selectedSnap.done / selectedSnap.total)
+                completionColor(selectedSnap.done / Math.max(selectedSnap.total, 1))
               )}>
-                {Math.round((selectedSnap.done / selectedSnap.total) * 100)}%
+                {Math.round((selectedSnap.done / Math.max(selectedSnap.total, 1)) * 100)}%
               </div>
             </div>
 
@@ -273,7 +255,7 @@ export default function CalendarPage() {
             <div className="h-1.5 bg-muted/30">
               <div
                 className="h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500"
-                style={{ width: `${(selectedSnap.done / selectedSnap.total) * 100}%` }}
+                style={{ width: `${(selectedSnap.done / Math.max(selectedSnap.total, 1)) * 100}%` }}
               />
             </div>
 
@@ -287,7 +269,7 @@ export default function CalendarPage() {
                   <div className="flex-1 min-w-0">
                     <div className={cn(
                       "text-xs font-medium truncate",
-                      block.done ? "text-foreground" : "text-muted-foreground line-through"
+                      block.done ? "text-foreground" : "text-muted-foreground"
                     )}>
                       {block.title}
                     </div>
@@ -300,9 +282,14 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {selectedDate && !selectedSnap && (
-          <div className="rounded-xl border border-border/30 bg-card/30 p-8 text-center text-muted-foreground text-sm">
-            No data for this day
+        {/* Empty month state */}
+        {!loading && Object.keys(snapshots).length === 0 && (
+          <div className="rounded-xl border-2 border-dashed border-border p-10 text-center">
+            <div className="text-4xl mb-3">📅</div>
+            <h3 className="text-sm font-bold text-foreground">No history yet</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Complete tasks on the Planner to see your daily progress here.
+            </p>
           </div>
         )}
       </div>

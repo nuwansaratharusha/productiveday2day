@@ -230,17 +230,41 @@ export default function IdeasVault() {
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
   const [showCapture, setShowCapture] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [missingTable, setMissingTable] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await getIdeas();
+    setPageError(null);
+    const { data, error } = await getIdeas();
+    if (error) {
+      if (error.includes("does not exist") || error.includes("42P01")) {
+        setMissingTable(true);
+      } else {
+        setPageError(error);
+      }
+    }
     if (data) setIdeas(data as Idea[]);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  async function handlePromote(id: string) { await promoteIdea(id); load(); }
+  async function handlePromote(id: string) {
+    const { data, error } = await promoteIdea(id);
+    if (error) {
+      if (error.includes("does not exist") || error.includes("42P01")) {
+        setMissingTable(true);
+      } else {
+        setPageError(`Failed to promote idea: ${error}`);
+        setTimeout(() => setPageError(null), 5000);
+      }
+      return;
+    }
+    if (data) {
+      setIdeas(p => p.map(i => i.id === id ? { ...i, status: "promoted" } : i));
+    }
+  }
   async function handleDelete(id: string) { await deleteIdea(id); setIdeas(p => p.filter(i => i.id !== id)); }
   async function handleStatusChange(id: string, status: string) {
     await updateIdea(id, { status });
@@ -290,6 +314,25 @@ export default function IdeasVault() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 pt-4">
+
+        {/* Missing table banner */}
+        {missingTable && (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 p-4 mb-4">
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">⚠️ Database setup required</p>
+            <p className="text-xs text-amber-600 dark:text-amber-500">
+              The <code className="bg-amber-100 dark:bg-amber-900/50 rounded px-1">ideas</code> or <code className="bg-amber-100 dark:bg-amber-900/50 rounded px-1">content_pieces</code> table is missing.
+              Run the creator SQL migrations in your Supabase dashboard to enable this feature.
+            </p>
+          </div>
+        )}
+
+        {/* Error banner */}
+        {pageError && (
+          <div className="rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200/60 p-4 mb-4">
+            <p className="text-sm text-red-600 dark:text-red-400">{pageError}</p>
+          </div>
+        )}
+
         {loading ? (
           <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />)}</div>
         ) : filtered.length === 0 ? (
