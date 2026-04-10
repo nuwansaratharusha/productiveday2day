@@ -341,37 +341,23 @@ html {
   text-size-adjust: 100%;
 }
 
-/* CRITICAL: Prevent iOS zoom-on-focus for inputs (font-size must be >= 16px on mobile) */
+/* CRITICAL: Prevent iOS zoom-on-focus.
+   Must cover ALL inputs — including those without an explicit type="text"
+   attribute (e.g. shadcn <Input>, bare <input>, <textarea>, <select>).
+   iOS Safari zooms whenever the focused element has font-size < 16px. */
 @media (max-width: 767px) {
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="number"],
-  input[type="tel"],
-  input[type="url"],
-  input[type="search"],
-  input[type="date"],
-  input[type="datetime-local"],
-  input[type="month"],
-  input[type="time"],
-  input[type="week"],
+  input,
   textarea,
   select {
     font-size: 16px !important;
   }
 }
 
-/* Remove iOS input chrome */
+/* Remove iOS default input chrome (search pill, select arrow chrome, etc.)
+   Do NOT set border-radius: 0 — that strips every component's custom rounding. */
 input, textarea, select {
   -webkit-appearance: none;
   appearance: none;
-  border-radius: 0;
-}
-/* Restore rounding where components set it explicitly */
-input[class*="rounded"],
-textarea[class*="rounded"],
-select[class*="rounded"] {
-  border-radius: revert;
 }
 
 /* Prevent long-word horizontal overflow */
