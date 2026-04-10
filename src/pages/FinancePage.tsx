@@ -1,8 +1,5 @@
 // =============================================================
-// ProductiveDay — Finance Tracker
-// =============================================================
-// Monthly credit/debit tracker for creators & entrepreneurs.
-// Summary at top → category breakdown → recurring → tx list.
+// ProductiveDay — Finance Tracker  (CashBook-style UI)
 // =============================================================
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -19,7 +16,9 @@ function fmtMoney(n: number) {
 }
 
 function fmtDate(d: string) {
-  return new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(d + "T12:00:00").toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric",
+  });
 }
 
 function monthLabel(m: string) {
@@ -55,23 +54,157 @@ function recurringDateForMonth(tx: Transaction, month: string) {
   return `${month}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
 }
 
-// ─── Summary Card ─────────────────────────────────────────────
+function groupByDate(txs: Transaction[]) {
+  const map: Record<string, Transaction[]> = {};
+  [...txs].sort((a, b) => b.date.localeCompare(a.date)).forEach(tx => {
+    (map[tx.date] = map[tx.date] || []).push(tx);
+  });
+  return Object.entries(map);
+}
 
-function SummaryCard({ label, value, icon, accent, sub }: {
-  label: string; value: number; icon: string;
-  accent: string; sub?: string;
+// ─── Summary Cards ────────────────────────────────────────────
+
+function SummaryCards({ monthly, recurring, month }: {
+  monthly: Transaction[];
+  recurring: Transaction[];
+  month: string;
 }) {
+  const allForMonth = [
+    ...monthly,
+    ...recurring.map(tx => ({ ...tx, date: recurringDateForMonth(tx, month) })),
+  ];
+  const totalIn = allForMonth.filter(t => t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
+  const totalOut = allForMonth.filter(t => t.type === "debit").reduce((s, t) => s + Number(t.amount), 0);
+  const net = totalIn - totalOut;
+
   return (
-    <div className={`rounded-2xl border border-border/50 p-4 flex items-center gap-3 bg-card`}>
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${accent}`}>
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">{label}</p>
-        <p className="text-lg font-bold text-foreground leading-tight">
-          {value >= 0 ? "" : "−"}${fmtMoney(Math.abs(value))}
+    <div className="grid grid-cols-3 gap-3 px-4 pt-4">
+      {/* Net Balance */}
+      <div className="bg-white dark:bg-card border border-border/60 rounded-2xl p-3.5 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Net Balance</span>
+          <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
+            <span className="text-sm">💼</span>
+          </div>
+        </div>
+        <p className={`text-lg font-bold leading-tight ${net >= 0 ? "text-blue-600 dark:text-blue-400" : "text-red-500"}`}>
+          ${fmtMoney(Math.abs(net))}
         </p>
-        {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
+        {net < 0 && <p className="text-[9px] text-red-400 font-medium mt-0.5">Over budget</p>}
+      </div>
+
+      {/* Total Cash In */}
+      <div className="bg-white dark:bg-card border border-border/60 rounded-2xl p-3.5 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Cash In</span>
+          <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
+            <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
+          ${fmtMoney(totalIn)}
+        </p>
+      </div>
+
+      {/* Total Cash Out */}
+      <div className="bg-white dark:bg-card border border-border/60 rounded-2xl p-3.5 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Cash Out</span>
+          <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
+            <svg className="w-3.5 h-3.5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-5a1 1 0 10-2 0V9.414l-1.293 1.293a1 1 0 01-1.414-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 9.414V13z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+        <p className="text-lg font-bold text-red-500 dark:text-red-400 leading-tight">
+          ${fmtMoney(totalOut)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Insights Banner ───────────────────────────────────────
+
+function AIInsightsBanner({ transactions, recurring, month }: {
+  transactions: Transaction[];
+  recurring: Transaction[];
+  month: string;
+}) {
+  const [insight, setInsight] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const allTxs = [
+    ...transactions,
+    ...recurring.map(tx => ({ ...tx, date: recurringDateForMonth(tx, month) })),
+  ];
+
+  const totalIn = allTxs.filter(t => t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
+  const totalOut = allTxs.filter(t => t.type === "debit").reduce((s, t) => s + Number(t.amount), 0);
+
+  const handleAnalyze = () => {
+    if (allTxs.length === 0) {
+      setInsight("No transactions this month yet. Start adding your income and expenses to get AI-powered insights!");
+      return;
+    }
+    setLoading(true);
+    // Simple local insight (no API call to save credits)
+    setTimeout(() => {
+      const net = totalIn - totalOut;
+      const savingsRate = totalIn > 0 ? ((net / totalIn) * 100).toFixed(0) : "0";
+      const topCategory = (() => {
+        const map: Record<string, number> = {};
+        allTxs.filter(t => t.type === "debit").forEach(t => {
+          map[t.category] = (map[t.category] || 0) + Number(t.amount);
+        });
+        const top = Object.entries(map).sort((a, b) => b[1] - a[1])[0];
+        return top ? `${top[0]} ($${fmtMoney(top[1])})` : "None";
+      })();
+      setInsight(
+        net >= 0
+          ? `Great job! You saved $${fmtMoney(net)} this month — a ${savingsRate}% savings rate. Top spending: ${topCategory}.`
+          : `You're $${fmtMoney(Math.abs(net))} over budget this month. Top spending: ${topCategory}. Consider reducing discretionary expenses.`
+      );
+      setLoading(false);
+    }, 800);
+  };
+
+  return (
+    <div className="mx-4 mt-3">
+      <div className="bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-indigo-500/10 border border-violet-200/60 dark:border-violet-800/40 rounded-2xl p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shrink-0 shadow-sm">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-foreground">AI Insights</p>
+            <p className="text-[11px] text-muted-foreground">
+              {insight || "Get smart analysis of your finances"}
+            </p>
+          </div>
+          {!insight && (
+            <button
+              onClick={handleAnalyze}
+              disabled={loading}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-violet-500 to-blue-500 text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-transform disabled:opacity-60"
+            >
+              {loading ? (
+                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>Analyze <span>→</span></>
+              )}
+            </button>
+          )}
+          {insight && (
+            <button onClick={() => setInsight(null)} className="shrink-0 text-muted-foreground hover:text-foreground text-lg">
+              ×
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -84,14 +217,15 @@ function CategoryBreakdown({ transactions }: { transactions: Transaction[] }) {
   transactions.filter(t => t.type === "debit").forEach(t => {
     debitsByCategory[t.category] = (debitsByCategory[t.category] || 0) + Number(t.amount);
   });
-
   const sorted = Object.entries(debitsByCategory).sort((a, b) => b[1] - a[1]);
   const total = sorted.reduce((s, [, v]) => s + v, 0);
   if (total === 0) return null;
 
   return (
-    <div className="bg-card rounded-2xl border border-border/50 p-4">
-      <h3 className="text-sm font-bold text-foreground mb-3">Spending by Category</h3>
+    <div className="mx-4 mt-3 bg-white dark:bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+      <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+        <span className="text-base">📊</span> Spending Breakdown
+      </h3>
       <div className="space-y-2.5">
         {sorted.slice(0, 6).map(([cat, amount]) => {
           const meta = getCategoryMeta(cat);
@@ -109,10 +243,8 @@ function CategoryBreakdown({ transactions }: { transactions: Transaction[] }) {
                 </div>
               </div>
               <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${pct}%`, backgroundColor: meta.color }}
-                />
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%`, backgroundColor: meta.color }} />
               </div>
             </div>
           );
@@ -122,261 +254,235 @@ function CategoryBreakdown({ transactions }: { transactions: Transaction[] }) {
   );
 }
 
-// ─── Transaction Card ─────────────────────────────────────────
+// ─── Entry Row ────────────────────────────────────────────────
 
-function TxCard({ tx, onDelete, onEdit }: {
-  tx: Transaction;
-  onDelete: (id: string) => void;
-  onEdit: (tx: Transaction) => void;
-}) {
+function EntryRow({ tx, onEdit }: { tx: Transaction; onEdit: (tx: Transaction) => void }) {
   const meta = getCategoryMeta(tx.category);
   const isCredit = tx.type === "credit";
-
   return (
-    <div
+    <button
       onClick={() => onEdit(tx)}
-      className="flex items-center gap-3 py-3 px-1 border-b border-border/30 last:border-0 cursor-pointer active:bg-muted/30 transition-colors group"
+      className="w-full flex items-center gap-3 py-3 text-left active:bg-muted/40 transition-colors rounded-xl px-1"
     >
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0"
-        style={{ backgroundColor: meta.color + "20" }}>
+      <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0"
+        style={{ backgroundColor: meta.color + "22" }}>
         {meta.icon}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground leading-snug truncate">{tx.title}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-[10px] text-muted-foreground">{fmtDate(tx.date)}</span>
+          <span className="text-[10px] text-muted-foreground">{tx.category}</span>
           {tx.recurring && (
-            <span className="text-[9px] bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-bold">
-              🔄 Recurring
+            <span className="text-[9px] bg-blue-50 dark:bg-blue-950/50 text-blue-500 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-bold">
+              Recurring
             </span>
           )}
-          <span className="text-[9px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded-full">{tx.category}</span>
         </div>
       </div>
-      <div className="shrink-0 text-right">
-        <p className={`text-sm font-bold ${isCredit ? "text-emerald-500 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-          {isCredit ? "+" : "−"}${fmtMoney(Number(tx.amount))}
-        </p>
-        <button
-          onClick={e => { e.stopPropagation(); onDelete(tx.id); }}
-          className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
+      <p className={`text-sm font-bold shrink-0 ${isCredit ? "text-emerald-500" : "text-red-500"}`}>
+        {isCredit ? "+" : "−"}${fmtMoney(Number(tx.amount))}
+      </p>
+    </button>
   );
 }
 
-// ─── Recurring Section ────────────────────────────────────────
+// ─── Add / Edit Modal ─────────────────────────────────────────
 
-function RecurringSection({ templates, month, onLogNow }: {
-  templates: Transaction[];
-  month: string;
-  onLogNow: (tx: Transaction) => void;
-}) {
-  if (templates.length === 0) return null;
-
-  return (
-    <div className="bg-card rounded-2xl border border-border/50 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm">🔄</span>
-        <h3 className="text-sm font-bold text-foreground">Recurring This Month</h3>
-        <span className="text-[10px] bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-bold ml-auto">
-          {templates.length}
-        </span>
-      </div>
-      <div className="space-y-2">
-        {templates.map(tx => {
-          const meta = getCategoryMeta(tx.category);
-          const isCredit = tx.type === "credit";
-          const dueDate = recurringDateForMonth(tx, month);
-          return (
-            <div key={tx.id}
-              className="flex items-center gap-2.5 p-2.5 rounded-xl bg-muted/40 border border-border/30">
-              <span className="text-base shrink-0">{meta.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{tx.title}</p>
-                <p className="text-[10px] text-muted-foreground">Due {fmtDate(dueDate)}</p>
-              </div>
-              <p className={`text-xs font-bold shrink-0 ${isCredit ? "text-emerald-500" : "text-red-500"}`}>
-                {isCredit ? "+" : "−"}${fmtMoney(Number(tx.amount))}
-              </p>
-              <button
-                onClick={() => onLogNow(tx)}
-                className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-lg hover:bg-primary/20 active:scale-95 transition-all shrink-0">
-                Log
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Add / Edit Sheet ─────────────────────────────────────────
-
-interface SheetProps {
+function EntryModal({
+  open, onClose, editTx, defaultType, onSaved, onDeleted,
+}: {
   open: boolean;
-  editTx?: Transaction | null;
-  prefillType?: TxType;
-  prefillFromRecurring?: Transaction | null;
   onClose: () => void;
-  onSave: () => void;
-}
-
-const DEFAULT_TYPE: TxType = "debit";
-
-function AddEditSheet({ open, editTx, prefillFromRecurring, prefillType, onClose, onSave }: SheetProps) {
-  const [title, setTitle]       = useState("");
-  const [amount, setAmount]     = useState("");
-  const [type, setType]         = useState<TxType>(DEFAULT_TYPE);
-  const [category, setCategory] = useState("Personal");
-  const [date, setDate]         = useState(todayStr());
+  editTx: Transaction | null;
+  defaultType: TxType;
+  onSaved: (tx: Transaction) => void;
+  onDeleted: (id: string) => void;
+}) {
+  const [type, setType] = useState<TxType>(defaultType);
+  const [amount, setAmount] = useState("");
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Other");
+  const [date, setDate] = useState(todayStr());
   const [recurring, setRecurring] = useState(false);
-  const [recurringDay, setRecurringDay] = useState<string>("");
-  const [notes, setNotes]       = useState("");
-  const [saving, setSaving]     = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [recurringDay, setRecurringDay] = useState<number>(1);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showCatPicker, setShowCatPicker] = useState(false);
+  const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     if (editTx) {
-      setTitle(editTx.title);
-      setAmount(String(editTx.amount));
       setType(editTx.type);
+      setAmount(String(editTx.amount));
+      setTitle(editTx.title);
       setCategory(editTx.category);
       setDate(editTx.date);
       setRecurring(editTx.recurring);
-      setRecurringDay(editTx.recurring_day ? String(editTx.recurring_day) : "");
-      setNotes(editTx.notes || "");
-    } else if (prefillFromRecurring) {
-      // Logging a recurring item for this month
-      setTitle(prefillFromRecurring.title);
-      setAmount(String(prefillFromRecurring.amount));
-      setType(prefillFromRecurring.type);
-      setCategory(prefillFromRecurring.category);
+      setRecurringDay(editTx.recurring_day ?? 1);
+      setNotes(editTx.notes ?? "");
+    } else {
+      setType(defaultType);
+      setAmount("");
+      setTitle("");
+      setCategory("Other");
       setDate(todayStr());
       setRecurring(false);
-      setRecurringDay("");
+      setRecurringDay(1);
       setNotes("");
-    } else {
-      setTitle(""); setAmount(""); setType(prefillType || DEFAULT_TYPE);
-      setCategory("Personal"); setDate(todayStr());
-      setRecurring(false); setRecurringDay(""); setNotes("");
     }
-    setTimeout(() => inputRef.current?.focus(), 150);
-  }, [open, editTx, prefillType, prefillFromRecurring]);
+    setTimeout(() => amountRef.current?.focus(), 100);
+  }, [open, editTx, defaultType]);
 
-  async function handleSave() {
-    if (!title.trim() || !amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
+  const handleSave = async () => {
+    if (!amount || !title.trim()) return;
     setSaving(true);
-    const payload: Omit<TransactionInsert, "user_id"> = {
+    const payload: TransactionInsert = {
       title: title.trim(),
-      amount: parseFloat(parseFloat(amount).toFixed(2)),
-      type, category, date, recurring,
-      recurring_day: recurring && recurringDay ? parseInt(recurringDay) : null,
+      amount: parseFloat(amount),
+      type,
+      category,
+      date,
+      recurring,
+      recurring_day: recurring ? recurringDay : null,
       notes: notes.trim() || null,
     };
+    let res;
     if (editTx) {
-      await updateTransaction(editTx.id, payload);
+      res = await updateTransaction(editTx.id, payload);
     } else {
-      await createTransaction(payload as TransactionInsert);
+      res = await createTransaction(payload);
     }
     setSaving(false);
-    onSave();
+    if (res.data) { onSaved(res.data); onClose(); }
+  };
+
+  const handleDelete = async () => {
+    if (!editTx) return;
+    setDeleting(true);
+    await deleteTransaction(editTx.id);
+    setDeleting(false);
+    onDeleted(editTx.id);
     onClose();
-  }
+  };
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-background rounded-t-3xl flex flex-col overflow-hidden"
-        style={{ maxHeight: "92vh" }} onClick={e => e.stopPropagation()}>
+  const catMeta = getCategoryMeta(category);
 
-        {/* Handle */}
-        <div className="flex justify-center pt-3 shrink-0">
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Dialog */}
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl border border-border/30 overflow-hidden">
+
+        {/* Drag handle (mobile) */}
+        <div className="flex justify-center pt-3 sm:hidden">
           <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
         </div>
 
-        {/* Header */}
-        <div className="px-5 pt-3 pb-4 shrink-0 border-b border-border/30">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-foreground">
-              {editTx ? "Edit Transaction" : prefillFromRecurring ? "Log Recurring" : "New Transaction"}
-            </h2>
-            <button onClick={onClose} className="text-muted-foreground text-xl hover:text-foreground">✕</button>
-          </div>
-
-          {/* Credit / Debit toggle */}
-          {!editTx && (
-            <div className="flex gap-2 mt-3">
-              {(["credit", "debit"] as TxType[]).map(t => (
-                <button key={t} onClick={() => setType(t)}
-                  className={`flex-1 h-10 rounded-xl text-sm font-bold capitalize transition-all active:scale-95 ${
-                    type === t
-                      ? t === "credit"
-                        ? "bg-emerald-500 text-white shadow-sm"
-                        : "bg-red-500 text-white shadow-sm"
-                      : "bg-muted text-muted-foreground"
-                  }`}>
-                  {t === "credit" ? "💵 Income" : "💸 Expense"}
-                </button>
-              ))}
-            </div>
-          )}
+        {/* Type Toggle — full width at top */}
+        <div className="flex gap-0 mt-3 mx-4 mb-4 bg-muted rounded-2xl p-1 border border-border/40">
+          <button
+            onClick={() => setType("credit")}
+            className={`flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              type === "credit"
+                ? "bg-emerald-500 text-white shadow-sm"
+                : "text-muted-foreground"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            Cash In
+          </button>
+          <button
+            onClick={() => setType("debit")}
+            className={`flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              type === "debit"
+                ? "bg-red-500 text-white shadow-sm"
+                : "text-muted-foreground"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+            </svg>
+            Cash Out
+          </button>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 min-h-0 px-5 py-4 space-y-4">
+        <div className="px-4 pb-6 space-y-4 max-h-[75vh] overflow-y-auto">
 
-          {/* Title */}
+          {/* Amount — Big and prominent */}
           <div>
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Title
+              Amount
             </label>
-            <input
-              ref={inputRef}
-              value={title} onChange={e => setTitle(e.target.value)}
-              placeholder={type === "credit" ? "e.g. Brand deal payment" : "e.g. Monthly rent"}
-              className="w-full bg-muted/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/20"
-            />
-          </div>
-
-          {/* Amount */}
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Amount ($)
-            </label>
-            <input
-              type="number" inputMode="decimal" min="0" step="0.01"
-              value={amount} onChange={e => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="w-full bg-muted/50 rounded-xl px-4 py-3 text-lg font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/20"
-            />
-          </div>
-
-          {/* Category */}
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">
-              Category
-            </label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {CATEGORIES.map(cat => (
-                <button key={cat.key} onClick={() => setCategory(cat.key)}
-                  className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[9px] font-bold transition-all active:scale-95 border ${
-                    category === cat.key
-                      ? "border-transparent text-white shadow-sm"
-                      : "border-border/50 bg-muted text-muted-foreground"
-                  }`}
-                  style={category === cat.key ? { backgroundColor: cat.color } : {}}>
-                  <span className="text-sm">{cat.icon}</span>
-                  <span className="leading-tight text-center">{cat.key.length > 8 ? cat.key.slice(0,7)+"…" : cat.key}</span>
-                </button>
-              ))}
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-lg font-semibold">$</span>
+              <input
+                ref={amountRef}
+                type="number"
+                inputMode="decimal"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl pl-9 pr-4 py-3.5 text-xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30"
+              />
             </div>
+          </div>
+
+          {/* Remark / Description */}
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
+              Remark
+            </label>
+            <textarea
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder={type === "credit" ? "What was this for? e.g. Brand deal, Salary..." : "What did you spend on?"}
+              rows={2}
+              className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 resize-none"
+            />
+          </div>
+
+          {/* Category picker */}
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
+              Category (Optional)
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowCatPicker(v => !v)}
+              className="w-full flex items-center gap-3 bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground focus:outline-none"
+            >
+              <span className="text-lg">{catMeta.icon}</span>
+              <span className="flex-1 text-left font-medium">{category}</span>
+              <svg className={`w-4 h-4 text-muted-foreground transition-transform ${showCatPicker ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showCatPicker && (
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {CATEGORIES.map(c => (
+                  <button
+                    key={c.key}
+                    onClick={() => { setCategory(c.key); setShowCatPicker(false); }}
+                    className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-center transition-all border text-[10px] font-medium ${
+                      category === c.key
+                        ? "border-primary/50 bg-primary/10 text-primary"
+                        : "border-border/30 bg-muted/30 text-muted-foreground"
+                    }`}
+                  >
+                    <span className="text-base">{c.icon}</span>
+                    <span className="leading-tight">{c.key}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Date */}
@@ -384,67 +490,69 @@ function AddEditSheet({ open, editTx, prefillFromRecurring, prefillType, onClose
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
               Date
             </label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full bg-muted/50 rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/20" />
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30"
+            />
           </div>
 
           {/* Recurring toggle */}
-          <div className="rounded-2xl border border-border/40 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-foreground">🔄 Recurring</p>
-                <p className="text-[11px] text-muted-foreground">Repeats every month on a fixed day</p>
-              </div>
-              <button onClick={() => setRecurring(r => !r)}
-                className={`w-12 h-6 rounded-full transition-colors relative ${recurring ? "bg-primary" : "bg-muted"}`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${recurring ? "translate-x-6" : "translate-x-0.5"}`} />
-              </button>
+          <div className="flex items-center justify-between bg-muted/40 border border-border/30 rounded-2xl px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Recurring</p>
+              <p className="text-[10px] text-muted-foreground">Repeats every month</p>
             </div>
-            {recurring && (
-              <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">
-                  Day of month
-                </label>
-                <input
-                  type="number" inputMode="numeric" min="1" max="31"
-                  value={recurringDay} onChange={e => setRecurringDay(e.target.value)}
-                  placeholder="e.g. 1 for 1st of every month"
-                  className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/20"
-                />
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => setRecurring(v => !v)}
+              className={`w-11 h-6 rounded-full transition-colors relative ${recurring ? "bg-primary" : "bg-muted-foreground/30"}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${recurring ? "translate-x-5" : "translate-x-0.5"}`} />
+            </button>
           </div>
+          {recurring && (
+            <div>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Day of Month
+              </label>
+              <input
+                type="number"
+                min={1} max={31}
+                value={recurringDay}
+                onChange={e => setRecurringDay(Number(e.target.value))}
+                className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          )}
 
-          {/* Notes */}
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Notes (optional)
-            </label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)}
-              rows={3} placeholder="Invoice #, vendor name, purpose…"
-              className="w-full bg-muted/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none border border-transparent focus:border-primary/20" />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 pt-3 border-t border-border/30 shrink-0 bg-background"
-          style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}>
-          <button onClick={handleSave}
-            disabled={!title.trim() || !amount || Number(amount) <= 0 || saving}
-            className={`w-full h-14 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-40 shadow-sm text-white ${
+          {/* Submit */}
+          <button
+            onClick={handleSave}
+            disabled={saving || !amount || !title.trim()}
+            className={`w-full h-12 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm ${
               type === "credit"
                 ? "bg-emerald-500 hover:bg-emerald-600"
-                : "bg-primary hover:opacity-90"
-            }`}>
-            {saving ? "Saving…" : editTx ? "Save Changes" : `Add ${type === "credit" ? "Income" : "Expense"} →`}
+                : "bg-red-500 hover:bg-red-600"
+            }`}
+          >
+            {saving ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Saving...
+              </span>
+            ) : editTx ? "Update Entry" : type === "credit" ? "Add Cash In" : "Add Cash Out"}
           </button>
+
+          {/* Delete (edit mode) */}
           {editTx && (
-            <button onClick={async () => {
-              if (!confirm("Delete this transaction?")) return;
-              await deleteTransaction(editTx.id);
-              onSave(); onClose();
-            }} className="w-full mt-2 h-10 rounded-xl border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 text-sm font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 transition-all active:scale-95">
-              Delete Transaction
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-full h-10 rounded-2xl text-sm font-semibold text-red-500 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+            >
+              {deleting ? "Deleting..." : "Delete Entry"}
             </button>
           )}
         </div>
@@ -453,248 +561,281 @@ function AddEditSheet({ open, editTx, prefillFromRecurring, prefillType, onClose
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────
 
 export default function FinancePage() {
-  const [month, setMonth]             = useState(currentMonth());
-  const [monthly, setMonthly]         = useState<Transaction[]>([]);
-  const [recurring, setRecurring]     = useState<Transaction[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [showAdd, setShowAdd]         = useState(false);
-  const [addType, setAddType]         = useState<TxType>("debit");
-  const [editTx, setEditTx]           = useState<Transaction | null>(null);
-  const [logRecurring, setLogRecurring] = useState<Transaction | null>(null);
+  const [month, setMonth] = useState(currentMonth);
+  const [monthly, setMonthly] = useState<Transaction[]>([]);
+  const [recurring, setRecurring] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
   const [missingTable, setMissingTable] = useState(false);
-  const [filterType, setFilterType]   = useState<"all" | "credit" | "debit">("all");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "credit" | "debit">("all");
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [defaultType, setDefaultType] = useState<TxType>("credit");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await getTransactions(month);
-    if (error) {
-      if (error.includes("42P01") || error.includes("does not exist")) setMissingTable(true);
-      setLoading(false);
-      return;
-    }
-    if (data) {
-      setMonthly(data.monthly);
-      setRecurring(data.recurring);
+    const res = await getTransactions(month);
+    if (res.error === "42P01" || (res.error && res.error.includes("does not exist"))) {
+      setMissingTable(true);
+    } else if (res.data) {
+      setMonthly(res.data.monthly);
+      setRecurring(res.data.recurring);
     }
     setLoading(false);
   }, [month]);
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Derived stats ──────────────────────────────────────────
-  const totalIncome  = monthly.filter(t => t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
-  const totalExpense = monthly.filter(t => t.type === "debit").reduce((s, t) => s + Number(t.amount), 0);
-  const net          = totalIncome - totalExpense;
+  // Display list = monthly + recurring projected
+  const allDisplay = [
+    ...monthly,
+    ...recurring.map(tx => ({ ...tx, id: `rec-${tx.id}`, date: recurringDateForMonth(tx, month) })),
+  ];
 
-  // Recurring projected totals (for the month)
-  const recurringIncome  = recurring.filter(t => t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
-  const recurringExpense = recurring.filter(t => t.type === "debit").reduce((s, t) => s + Number(t.amount), 0);
-
-  // Filtered list
-  const filteredTx = filterType === "all"
-    ? monthly
-    : monthly.filter(t => t.type === filterType);
-
-  // Group by date
-  const byDate: Record<string, Transaction[]> = {};
-  filteredTx.forEach(tx => {
-    byDate[tx.date] = byDate[tx.date] || [];
-    byDate[tx.date].push(tx);
+  const filtered = allDisplay.filter(tx => {
+    const matchesFilter = filter === "all" || tx.type === filter;
+    const matchesSearch = !search || tx.title.toLowerCase().includes(search.toLowerCase())
+      || tx.category.toLowerCase().includes(search.toLowerCase())
+      || String(tx.amount).includes(search);
+    return matchesFilter && matchesSearch;
   });
-  const dateSorted = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
-  const isCurrentMonth = month === currentMonth();
+  const grouped = groupByDate(filtered);
+
+  const openAdd = (type: TxType) => {
+    setEditTx(null);
+    setDefaultType(type);
+    setModalOpen(true);
+  };
+
+  const openEdit = (tx: Transaction) => {
+    if (tx.id.startsWith("rec-")) return; // don't edit recurring projections
+    setEditTx(tx);
+    setDefaultType(tx.type);
+    setModalOpen(true);
+  };
+
+  const handleSaved = (tx: Transaction) => {
+    if (tx.recurring) {
+      setRecurring(prev => {
+        const idx = prev.findIndex(t => t.id === tx.id);
+        return idx >= 0 ? prev.map(t => t.id === tx.id ? tx : t) : [...prev, tx];
+      });
+    } else {
+      setMonthly(prev => {
+        const idx = prev.findIndex(t => t.id === tx.id);
+        return idx >= 0 ? prev.map(t => t.id === tx.id ? tx : t) : [tx, ...prev];
+      });
+    }
+  };
+
+  const handleDeleted = (id: string) => {
+    setMonthly(prev => prev.filter(t => t.id !== id));
+    setRecurring(prev => prev.filter(t => t.id !== id));
+  };
 
   return (
-    <div className="min-h-screen bg-background pb-28">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-background overflow-hidden">
 
-      {/* ── Header ── */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/40">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-base font-bold text-foreground">💰 Finance</h1>
-            <p className="text-xs text-muted-foreground">{monthLabel(month)}</p>
-          </div>
+      {/* ── Top Header ─────────────────────────────────────── */}
+      <div className="bg-white dark:bg-card border-b border-border/40 px-4 pt-safe-top pb-3 shrink-0 shadow-sm">
+        <div className="flex items-center justify-between">
           {/* Month navigator */}
-          <div className="flex items-center gap-2">
-            <button onClick={() => setMonth(prevMonth(month))}
-              className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-foreground font-bold hover:bg-muted/80 active:scale-95 transition-all text-sm">
-              ‹
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setMonth(prevMonth(month))}
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted active:bg-muted/80 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </button>
-            {!isCurrentMonth && (
-              <button onClick={() => setMonth(currentMonth())}
-                className="text-[10px] text-primary font-bold px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all">
-                Today
-              </button>
-            )}
-            <button onClick={() => setMonth(nextMonth(month))}
-              className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-foreground font-bold hover:bg-muted/80 active:scale-95 transition-all text-sm">
-              ›
+            <button
+              onClick={() => setMonth(currentMonth())}
+              className="px-3 h-9 rounded-xl text-sm font-bold text-foreground border border-border/40 bg-white dark:bg-muted/30 min-w-[130px] text-center"
+            >
+              {monthLabel(month)}
+            </button>
+            <button
+              onClick={() => setMonth(nextMonth(month))}
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted active:bg-muted/80 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => openAdd("credit")}
+              className="flex items-center gap-1.5 px-3 h-9 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-xl shadow-sm active:scale-95 transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              Cash In
+            </button>
+            <button
+              onClick={() => openAdd("debit")}
+              className="flex items-center gap-1.5 px-3 h-9 bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold rounded-xl shadow-sm active:scale-95 transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+              </svg>
+              Cash Out
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4">
+      {/* ── Scrollable Body ─────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
 
-        {/* ── Missing table banner ── */}
+        {/* Missing table banner */}
         {missingTable && (
-          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 p-4">
-            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">⚠️ Database setup required</p>
+          <div className="mx-4 mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl">
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">⚙️ Setup Required</p>
             <p className="text-xs text-amber-600 dark:text-amber-500">
-              Run the SQL migration in <strong>Supabase → SQL Editor</strong>:
-              <br /><code className="bg-amber-100 dark:bg-amber-900/50 rounded px-1">supabase/migrations/003_finance_tracker.sql</code>
+              Run <code className="bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded text-[10px]">supabase/migrations/003_finance_tracker.sql</code> in your Supabase SQL Editor to activate Finance Tracker.
             </p>
           </div>
         )}
 
-        {loading ? (
-          <div className="space-y-3">
-            {[1,2,3].map(i => <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />)}
+        {/* Summary Cards */}
+        <SummaryCards monthly={monthly} recurring={recurring} month={month} />
+
+        {/* AI Insights */}
+        <AIInsightsBanner transactions={monthly} recurring={recurring} month={month} />
+
+        {/* Breakdown toggle */}
+        {monthly.length > 0 && (
+          <div className="px-4 mt-3">
+            <button
+              onClick={() => setShowBreakdown(v => !v)}
+              className="w-full flex items-center justify-between bg-white dark:bg-card border border-border/40 rounded-2xl px-4 py-3 text-sm font-semibold text-foreground shadow-sm"
+            >
+              <span className="flex items-center gap-2">
+                <span>📊</span> Spending Breakdown
+              </span>
+              <svg className={`w-4 h-4 text-muted-foreground transition-transform ${showBreakdown ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showBreakdown && <CategoryBreakdown transactions={[...monthly, ...recurring]} />}
           </div>
-        ) : (
-          <>
-            {/* ── Summary cards ── */}
-            <div className="grid grid-cols-3 gap-2.5">
-              <SummaryCard label="Income" value={totalIncome} icon="💵"
-                accent="bg-emerald-100 dark:bg-emerald-950/50"
-                sub={recurring.filter(t=>t.type==="credit").length > 0 ? `+$${fmtMoney(recurringIncome)} recurring` : undefined} />
-              <SummaryCard label="Expenses" value={totalExpense} icon="💸"
-                accent="bg-red-100 dark:bg-red-950/50"
-                sub={recurring.filter(t=>t.type==="debit").length > 0 ? `$${fmtMoney(recurringExpense)} recurring` : undefined} />
-              <SummaryCard label="Net" value={net} icon={net >= 0 ? "📈" : "📉"}
-                accent={net >= 0 ? "bg-blue-100 dark:bg-blue-950/50" : "bg-orange-100 dark:bg-orange-950/50"} />
-            </div>
+        )}
 
-            {/* ── Quick add buttons ── */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <button onClick={() => { setAddType("credit"); setEditTx(null); setLogRecurring(null); setShowAdd(true); }}
-                className="h-12 rounded-2xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 active:scale-[0.98] transition-all shadow-sm">
-                + Add Income
-              </button>
-              <button onClick={() => { setAddType("debit"); setEditTx(null); setLogRecurring(null); setShowAdd(true); }}
-                className="h-12 rounded-2xl bg-primary text-white font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all shadow-sm">
-                + Add Expense
-              </button>
-            </div>
-
-            {/* ── Category breakdown ── */}
-            <CategoryBreakdown transactions={monthly} />
-
-            {/* ── Recurring ── */}
-            <RecurringSection
-              templates={recurring}
-              month={month}
-              onLogNow={tx => { setLogRecurring(tx); setEditTx(null); setShowAdd(true); }}
+        {/* Search + Filter */}
+        <div className="px-4 mt-3 flex gap-2">
+          <div className="flex-1 relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by remark or amount..."
+              className="w-full bg-white dark:bg-card border border-border/40 rounded-2xl pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
             />
+          </div>
+          <div className="flex gap-1 bg-white dark:bg-card border border-border/40 rounded-2xl p-1 shadow-sm">
+            {(["all", "credit", "debit"] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold capitalize transition-all ${
+                  filter === f
+                    ? f === "credit" ? "bg-emerald-500 text-white"
+                      : f === "debit" ? "bg-red-500 text-white"
+                      : "bg-primary text-primary-foreground"
+                    : "text-muted-foreground"
+                }`}>
+                {f === "credit" ? "In" : f === "debit" ? "Out" : "All"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-            {/* ── Transaction list ── */}
-            <div className="bg-card rounded-2xl border border-border/50 overflow-hidden">
-              {/* List header + filter */}
-              <div className="px-4 pt-4 pb-2 border-b border-border/30">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-foreground">Transactions</h3>
-                  <span className="text-[10px] text-muted-foreground">{monthly.length} this month</span>
-                </div>
-                <div className="flex gap-1.5">
-                  {[["all","All"],["credit","Income"],["debit","Expenses"]] .map(([v, l]) => (
-                    <button key={v} onClick={() => setFilterType(v as typeof filterType)}
-                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        filterType === v
-                          ? v === "credit" ? "bg-emerald-500 text-white" : v === "debit" ? "bg-red-500 text-white" : "bg-primary text-white"
-                          : "bg-muted text-muted-foreground"
-                      }`}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
+        {/* Entries */}
+        <div className="mx-4 mt-3 mb-24">
+          <h3 className="text-sm font-bold text-foreground mb-2 flex items-center justify-between">
+            Entries
+            {filtered.length > 0 && (
+              <span className="text-[10px] text-muted-foreground font-normal">{filtered.length} transactions</span>
+            )}
+          </h3>
+
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-3" />
+              <p className="text-xs">Loading entries...</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="bg-white dark:bg-card border border-border/40 rounded-2xl flex flex-col items-center justify-center py-12 shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center text-2xl mb-3">
+                📋
               </div>
-
-              {monthly.length === 0 ? (
-                <div className="text-center py-12 px-4">
-                  <div className="text-4xl mb-3 opacity-20">💰</div>
-                  <h3 className="text-sm font-bold text-foreground mb-1">No transactions yet</h3>
-                  <p className="text-xs text-muted-foreground mb-5">Add your first income or expense to start tracking</p>
-                  <button onClick={() => { setAddType("debit"); setEditTx(null); setLogRecurring(null); setShowAdd(true); }}
-                    className="px-6 py-3 rounded-2xl bg-primary text-white text-sm font-bold hover:opacity-90 active:scale-95 transition-all shadow-sm">
-                    Add First Transaction
+              <p className="text-sm font-semibold text-foreground mb-1">No entries yet</p>
+              <p className="text-xs text-muted-foreground text-center px-8">
+                {search ? "No transactions match your search." : "Start adding your cash in and cash out entries"}
+              </p>
+              {!search && (
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => openAdd("credit")}
+                    className="px-4 py-2 bg-emerald-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-transform">
+                    + Cash In
                   </button>
-                </div>
-              ) : (
-                <div className="px-4">
-                  {dateSorted.map(date => (
-                    <div key={date}>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider py-2 sticky top-0 bg-card">
-                        {fmtDate(date)}
-                      </p>
-                      {byDate[date].map(tx => (
-                        <TxCard key={tx.id} tx={tx}
-                          onDelete={async id => {
-                            if (!confirm("Delete transaction?")) return;
-                            setMonthly(prev => prev.filter(t => t.id !== id));
-                            await deleteTransaction(id);
-                          }}
-                          onEdit={tx => { setEditTx(tx); setLogRecurring(null); setShowAdd(true); }}
-                        />
-                      ))}
-                    </div>
-                  ))}
+                  <button onClick={() => openAdd("debit")}
+                    className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-transform">
+                    − Cash Out
+                  </button>
                 </div>
               )}
             </div>
+          ) : (
+            <div className="bg-white dark:bg-card border border-border/40 rounded-2xl shadow-sm overflow-hidden">
+              {grouped.map(([dateStr, txs], gi) => (
+                <div key={dateStr}>
+                  {/* Date header */}
+                  <div className={`px-4 py-2 bg-muted/30 flex items-center justify-between ${gi > 0 ? "border-t border-border/30" : ""}`}>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+                      {fmtDate(dateStr)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {txs.length} {txs.length === 1 ? "entry" : "entries"}
+                    </span>
+                  </div>
+                  {/* Transaction rows */}
+                  <div className="px-3 divide-y divide-border/20">
+                    {txs.map(tx => (
+                      <EntryRow key={tx.id} tx={tx} onEdit={openEdit} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-            {/* ── Recurring manage section ── */}
-            {recurring.length > 0 && (
-              <div className="bg-card rounded-2xl border border-border/50 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-foreground">Manage Recurring</h3>
-                  <span className="text-[10px] text-muted-foreground">{recurring.length} templates</span>
-                </div>
-                <div className="space-y-2">
-                  {recurring.map(tx => {
-                    const meta = getCategoryMeta(tx.category);
-                    return (
-                      <div key={tx.id}
-                        onClick={() => { setEditTx(tx); setLogRecurring(null); setShowAdd(true); }}
-                        className="flex items-center gap-3 p-2.5 rounded-xl border border-border/40 cursor-pointer hover:border-border active:bg-muted/20 transition-all">
-                        <span className="text-base">{meta.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-foreground truncate">{tx.title}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Day {tx.recurring_day ?? new Date(tx.date).getDate()} of every month
-                          </p>
-                        </div>
-                        <p className={`text-xs font-bold shrink-0 ${tx.type === "credit" ? "text-emerald-500" : "text-red-500"}`}>
-                          {tx.type === "credit" ? "+" : "−"}${fmtMoney(Number(tx.amount))}
-                        </p>
-                        <span className="text-muted-foreground text-xs">›</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        {/* Bottom padding for nav */}
+        <div className="h-safe-bottom" />
       </div>
 
-      {/* ── FAB ── */}
-      <button onClick={() => { setAddType("debit"); setEditTx(null); setLogRecurring(null); setShowAdd(true); }}
-        className="fixed bottom-24 right-4 w-14 h-14 rounded-2xl bg-primary text-white text-2xl shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center z-40 font-bold">
-        +
-      </button>
-
-      {/* ── Sheet ── */}
-      <AddEditSheet
-        open={showAdd}
+      {/* Add/Edit Modal */}
+      <EntryModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
         editTx={editTx}
-        prefillType={addType}
-        prefillFromRecurring={logRecurring}
-        onClose={() => { setShowAdd(false); setEditTx(null); setLogRecurring(null); }}
-        onSave={load}
+        defaultType={defaultType}
+        onSaved={handleSaved}
+        onDeleted={handleDeleted}
       />
     </div>
   );
