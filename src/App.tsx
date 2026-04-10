@@ -19,6 +19,7 @@ import CreatorDashboard from "./pages/creator/CreatorDashboard.tsx";
 import IdeasVault from "./pages/creator/IdeasVault.tsx";
 import ContentPipeline from "./pages/creator/ContentPipeline.tsx";
 import ScriptEditor from "./pages/creator/ScriptEditor.tsx";
+import FinancePage from "./pages/FinancePage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+              <Route path="/finance" element={<ProtectedRoute><FinancePage /></ProtectedRoute>} />
               <Route path="/creator" element={<ProtectedRoute><CreatorDashboard /></ProtectedRoute>} />
               <Route path="/creator/ideas" element={<ProtectedRoute><IdeasVault /></ProtectedRoute>} />
               <Route path="/creator/pipeline" element={<ProtectedRoute><ContentPipeline /></ProtectedRoute>} />

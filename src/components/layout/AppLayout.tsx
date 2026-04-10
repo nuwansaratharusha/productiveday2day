@@ -2,17 +2,18 @@
 // ProductiveDay — App Layout with Bottom Nav (6-item mobile nav)
 // =============================================================
 import { NavLink, useLocation } from "react-router-dom";
-import { CalendarDays, LayoutGrid, Flame, BarChart3, User, Clapperboard } from "lucide-react";
+import { CalendarDays, LayoutGrid, Flame, BarChart3, User, Clapperboard, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { to: "/",          icon: LayoutGrid,  label: "Planner"   },
-  { to: "/habits",    icon: Flame,       label: "Habits"    },
-  { to: "/creator",   icon: Clapperboard,label: "Creator"   },
-  { to: "/analytics", icon: BarChart3,   label: "Analytics" },
-  { to: "/calendar",  icon: CalendarDays,label: "Calendar"  },
-  { to: "/profile",   icon: User,        label: "Profile"   },
+  { to: "/",          icon: LayoutGrid,  label: "Planner"  },
+  { to: "/habits",    icon: Flame,       label: "Habits"   },
+  { to: "/creator",   icon: Clapperboard,label: "Creator"  },
+  { to: "/finance",   icon: Wallet,      label: "Finance"  },
+  { to: "/analytics", icon: BarChart3,   label: "Stats"    },
+  { to: "/calendar",  icon: CalendarDays,label: "Calendar" },
+  { to: "/profile",   icon: User,        label: "Profile"  },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -48,7 +49,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   "relative flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200",
                   isActive && "bg-primary/10"
                 )}>
-                  <Icon className={cn("w-[17px] h-[17px]", isActive && "stroke-[2.2px]")} />
+                  <Icon className={cn("w-[15px] h-[15px]", isActive && "stroke-[2.2px]")} />
                   {isActive && (
                     <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
                   )}
