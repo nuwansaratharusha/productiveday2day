@@ -1,29 +1,62 @@
 // =============================================================
-// ProductiveDay — Finance Tracker  (CashBook-style UI)
+// ProductiveDay — Finance Tracker  (CashBook2-style UI)
+// Currency selector · Language (EN / සි) · AI Insights
 // =============================================================
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   getTransactions, createTransaction, updateTransaction, deleteTransaction,
   CATEGORIES, getCategoryMeta,
   type Transaction, type TxType, type TransactionInsert,
 } from "@/lib/supabase/finance";
+import {
+  CURRENCIES, getSavedCurrency, saveCurrency,
+  getSavedLang, saveLang, formatAmount, type Currency,
+} from "@/lib/finance/currencies";
+import { getT, type FinanceLang } from "@/lib/finance/translations";
+
+// ── shadcn/ui ─────────────────────────────────────────────────
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Sheet, SheetContent,
+} from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-function fmtMoney(n: number) {
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
 }
 
-function fmtDate(d: string) {
-  return new Date(d + "T12:00:00").toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric",
-  });
+function fmtDate(d: string, lang: FinanceLang) {
+  return new Date(d + "T12:00:00").toLocaleDateString(
+    lang === "si" ? "si-LK" : "en-US",
+    { weekday: "short", month: "short", day: "numeric" }
+  );
 }
 
-function monthLabel(m: string) {
+function monthLabel(m: string, lang: FinanceLang) {
   const [y, mo] = m.split("-").map(Number);
-  return new Date(y, mo - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return new Date(y, mo - 1, 1).toLocaleDateString(
+    lang === "si" ? "si-LK" : "en-US",
+    { month: "long", year: "numeric" }
+  );
 }
 
 function prevMonth(m: string) {
@@ -43,10 +76,6 @@ function currentMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function todayStr() {
-  return new Date().toISOString().split("T")[0];
-}
-
 function recurringDateForMonth(tx: Transaction, month: string) {
   const day = tx.recurring_day ?? new Date(tx.date).getDate();
   const [y, mo] = month.split("-").map(Number);
@@ -54,431 +83,525 @@ function recurringDateForMonth(tx: Transaction, month: string) {
   return `${month}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
 }
 
-function groupByDate(txs: Transaction[]) {
-  const map: Record<string, Transaction[]> = {};
-  [...txs].sort((a, b) => b.date.localeCompare(a.date)).forEach(tx => {
-    (map[tx.date] = map[tx.date] || []).push(tx);
-  });
-  return Object.entries(map);
-}
+// ─── Balance Cards ────────────────────────────────────────────
 
-// ─── Summary Cards ────────────────────────────────────────────
-
-function SummaryCards({ monthly, recurring, month }: {
+function BalanceCards({
+  monthly, recurring, month, currency,
+  t,
+}: {
   monthly: Transaction[];
   recurring: Transaction[];
   month: string;
+  currency: Currency;
+  t: ReturnType<typeof getT>;
 }) {
-  const allForMonth = [
+  const all = [
     ...monthly,
     ...recurring.map(tx => ({ ...tx, date: recurringDateForMonth(tx, month) })),
   ];
-  const totalIn = allForMonth.filter(t => t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
-  const totalOut = allForMonth.filter(t => t.type === "debit").reduce((s, t) => s + Number(t.amount), 0);
-  const net = totalIn - totalOut;
+  const totalIn  = all.filter(x => x.type === "credit").reduce((s, x) => s + Number(x.amount), 0);
+  const totalOut = all.filter(x => x.type === "debit" ).reduce((s, x) => s + Number(x.amount), 0);
+  const net      = totalIn - totalOut;
 
   return (
-    <div className="grid grid-cols-3 gap-3 px-4 pt-4">
+    <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
       {/* Net Balance */}
-      <div className="bg-white dark:bg-card border border-border/60 rounded-2xl p-3.5 shadow-sm">
+      <div className="min-w-[150px] flex-shrink-0 bg-card border border-border rounded-xl p-4 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Net Balance</span>
-          <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
-            <span className="text-sm">💼</span>
-          </div>
+          <span className="text-xs font-medium text-muted-foreground">{t("netBalance")}</span>
+          <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
         </div>
-        <p className={`text-lg font-bold leading-tight ${net >= 0 ? "text-blue-600 dark:text-blue-400" : "text-red-500"}`}>
-          ${fmtMoney(Math.abs(net))}
+        <p className={`text-xl font-bold ${net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+          {net < 0 && "−"}{formatAmount(Math.abs(net), currency.symbol)}
         </p>
-        {net < 0 && <p className="text-[9px] text-red-400 font-medium mt-0.5">Over budget</p>}
+        {net < 0 && <p className="text-[10px] text-red-400 mt-0.5 font-medium">{t("overBudget")}</p>}
       </div>
 
-      {/* Total Cash In */}
-      <div className="bg-white dark:bg-card border border-border/60 rounded-2xl p-3.5 shadow-sm">
+      {/* Cash In */}
+      <div className="min-w-[150px] flex-shrink-0 bg-card border border-border rounded-xl p-4 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Cash In</span>
-          <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
-            <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clipRule="evenodd" />
-            </svg>
-          </div>
+          <span className="text-xs font-medium text-muted-foreground">{t("totalCashIn")}</span>
+          <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" />
+          </svg>
         </div>
-        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
-          ${fmtMoney(totalIn)}
+        <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+          {formatAmount(totalIn, currency.symbol)}
         </p>
       </div>
 
-      {/* Total Cash Out */}
-      <div className="bg-white dark:bg-card border border-border/60 rounded-2xl p-3.5 shadow-sm">
+      {/* Cash Out */}
+      <div className="min-w-[150px] flex-shrink-0 bg-card border border-border rounded-xl p-4 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Cash Out</span>
-          <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
-            <svg className="w-3.5 h-3.5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-5a1 1 0 10-2 0V9.414l-1.293 1.293a1 1 0 01-1.414-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 9.414V13z" clipRule="evenodd" />
-            </svg>
-          </div>
+          <span className="text-xs font-medium text-muted-foreground">{t("totalCashOut")}</span>
+          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
+          </svg>
         </div>
-        <p className="text-lg font-bold text-red-500 dark:text-red-400 leading-tight">
-          ${fmtMoney(totalOut)}
+        <p className="text-xl font-bold text-red-500 dark:text-red-400">
+          {formatAmount(totalOut, currency.symbol)}
         </p>
       </div>
     </div>
   );
 }
 
-// ─── AI Insights Banner ───────────────────────────────────────
+// ─── AI Insights ──────────────────────────────────────────────
 
-function AIInsightsBanner({ transactions, recurring, month }: {
+function AIInsights({
+  transactions, recurring, month, currency, t,
+}: {
   transactions: Transaction[];
   recurring: Transaction[];
   month: string;
+  currency: Currency;
+  t: ReturnType<typeof getT>;
 }) {
-  const [insight, setInsight] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [insights, setInsights] = useState<{ type: string; title: string; desc: string }[]>([]);
 
-  const allTxs = [
+  const all = [
     ...transactions,
     ...recurring.map(tx => ({ ...tx, date: recurringDateForMonth(tx, month) })),
   ];
-
-  const totalIn = allTxs.filter(t => t.type === "credit").reduce((s, t) => s + Number(t.amount), 0);
-  const totalOut = allTxs.filter(t => t.type === "debit").reduce((s, t) => s + Number(t.amount), 0);
+  const totalIn  = all.filter(x => x.type === "credit").reduce((s, x) => s + Number(x.amount), 0);
+  const totalOut = all.filter(x => x.type === "debit" ).reduce((s, x) => s + Number(x.amount), 0);
+  const net      = totalIn - totalOut;
 
   const handleAnalyze = () => {
-    if (allTxs.length === 0) {
-      setInsight("No transactions this month yet. Start adding your income and expenses to get AI-powered insights!");
-      return;
-    }
     setLoading(true);
-    // Simple local insight (no API call to save credits)
     setTimeout(() => {
-      const net = totalIn - totalOut;
-      const savingsRate = totalIn > 0 ? ((net / totalIn) * 100).toFixed(0) : "0";
-      const topCategory = (() => {
-        const map: Record<string, number> = {};
-        allTxs.filter(t => t.type === "debit").forEach(t => {
-          map[t.category] = (map[t.category] || 0) + Number(t.amount);
-        });
-        const top = Object.entries(map).sort((a, b) => b[1] - a[1])[0];
-        return top ? `${top[0]} ($${fmtMoney(top[1])})` : "None";
-      })();
-      setInsight(
-        net >= 0
-          ? `Great job! You saved $${fmtMoney(net)} this month — a ${savingsRate}% savings rate. Top spending: ${topCategory}.`
-          : `You're $${fmtMoney(Math.abs(net))} over budget this month. Top spending: ${topCategory}. Consider reducing discretionary expenses.`
-      );
+      const savRate = totalIn > 0 ? Math.round((net / totalIn) * 100) : 0;
+      const catMap: Record<string, number> = {};
+      all.filter(x => x.type === "debit").forEach(x => {
+        catMap[x.category] = (catMap[x.category] || 0) + Number(x.amount);
+      });
+      const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
+
+      const items = [];
+      if (net >= 0) {
+        items.push({ type: "tip", title: "Great savings rate!", desc: `You saved ${formatAmount(net, currency.symbol)} — ${savRate}% of income this month.` });
+      } else {
+        items.push({ type: "warning", title: "Over budget", desc: `You spent ${formatAmount(Math.abs(net), currency.symbol)} more than you earned. Review your expenses.` });
+      }
+      if (topCat) {
+        items.push({ type: "trend", title: "Top spending category", desc: `${topCat[0]} accounts for ${formatAmount(topCat[1], currency.symbol)} of your expenses.` });
+      }
+      if (transactions.length === 0) {
+        items.push({ type: "suggestion", title: "Start tracking!", desc: "Add your first transactions to get personalized insights." });
+      } else if (savRate > 20) {
+        items.push({ type: "suggestion", title: "Consider investing", desc: `With a ${savRate}% savings rate, you could invest the surplus for better returns.` });
+      }
+
+      setInsights(items);
+      setExpanded(true);
       setLoading(false);
-    }, 800);
+    }, 900);
   };
 
-  return (
-    <div className="mx-4 mt-3">
-      <div className="bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-indigo-500/10 border border-violet-200/60 dark:border-violet-800/40 rounded-2xl p-4">
+  const iconForType = (type: string) => {
+    if (type === "tip")        return <span className="text-emerald-500">📈</span>;
+    if (type === "warning")    return <span className="text-red-500">📉</span>;
+    if (type === "trend")      return <span className="text-blue-500">📊</span>;
+    if (type === "suggestion") return <span className="text-amber-500">💡</span>;
+    return <span>✨</span>;
+  };
+
+  if (!expanded) {
+    return (
+      <div className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shrink-0 shadow-sm">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-foreground">AI Insights</p>
-            <p className="text-[11px] text-muted-foreground">
-              {insight || "Get smart analysis of your finances"}
-            </p>
+            <p className="text-sm font-semibold text-foreground">{t("aiInsights")}</p>
+            <p className="text-xs text-muted-foreground truncate">{t("getSmartAnalysis")}</p>
           </div>
-          {!insight && (
-            <button
-              onClick={handleAnalyze}
-              disabled={loading}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-violet-500 to-blue-500 text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-transform disabled:opacity-60"
-            >
-              {loading ? (
-                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>Analyze <span>→</span></>
+          <button
+            onClick={handleAnalyze}
+            disabled={loading}
+            className="shrink-0 flex items-center gap-1.5 px-3 h-9 bg-primary text-primary-foreground text-xs font-semibold rounded-lg shadow-sm active:scale-95 transition-all disabled:opacity-60"
+          >
+            {loading
+              ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <>{t("analyze")} <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></>
+            }
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span className="text-sm font-semibold text-foreground">{t("aiInsights")}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handleAnalyze} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border">{t("refresh")}</button>
+          <button onClick={() => setExpanded(false)} className="text-muted-foreground hover:text-foreground">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      </div>
+      {insights.map((ins, i) => (
+        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-card border border-border hover:bg-accent/30 transition-colors">
+          <div className="p-1.5 rounded-md bg-background shrink-0">{iconForType(ins.type)}</div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">{ins.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{ins.desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Search + Filter ──────────────────────────────────────────
+
+function SearchFilter({
+  search, onSearch,
+  typeFilter, onTypeFilter,
+  categoryFilter, onCategoryFilter,
+  sortBy, onSort,
+  categories, t,
+}: {
+  search: string; onSearch: (v: string) => void;
+  typeFilter: "all" | "credit" | "debit"; onTypeFilter: (v: "all" | "credit" | "debit") => void;
+  categoryFilter: string; onCategoryFilter: (v: string) => void;
+  sortBy: "date" | "amount"; onSort: (v: "date" | "amount") => void;
+  categories: string[];
+  t: ReturnType<typeof getT>;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeCount = [typeFilter !== "all", categoryFilter !== "all", sortBy !== "date"].filter(Boolean).length;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            value={search} onChange={e => onSearch(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="w-full bg-card border border-border rounded-lg pl-9 pr-8 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {search && (
+            <button onClick={() => onSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          )}
+        </div>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button className="flex items-center gap-1.5 px-3 py-2 bg-card border border-border rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              <span className="hidden sm:inline">{t("filters")}</span>
+              {activeCount > 0 && (
+                <Badge variant="secondary" className="h-4 w-4 p-0 flex items-center justify-center text-[10px] rounded-full">
+                  {activeCount}
+                </Badge>
               )}
             </button>
-          )}
-          {insight && (
-            <button onClick={() => setInsight(null)} className="shrink-0 text-muted-foreground hover:text-foreground text-lg">
-              ×
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Category Breakdown ───────────────────────────────────────
-
-function CategoryBreakdown({ transactions }: { transactions: Transaction[] }) {
-  const debitsByCategory: Record<string, number> = {};
-  transactions.filter(t => t.type === "debit").forEach(t => {
-    debitsByCategory[t.category] = (debitsByCategory[t.category] || 0) + Number(t.amount);
-  });
-  const sorted = Object.entries(debitsByCategory).sort((a, b) => b[1] - a[1]);
-  const total = sorted.reduce((s, [, v]) => s + v, 0);
-  if (total === 0) return null;
-
-  return (
-    <div className="mx-4 mt-3 bg-white dark:bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
-      <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-        <span className="text-base">📊</span> Spending Breakdown
-      </h3>
-      <div className="space-y-2.5">
-        {sorted.slice(0, 6).map(([cat, amount]) => {
-          const meta = getCategoryMeta(cat);
-          const pct = Math.round((amount / total) * 100);
-          return (
-            <div key={cat}>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm">{meta.icon}</span>
-                  <span className="text-xs text-foreground font-medium">{cat}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">{pct}%</span>
-                  <span className="text-xs font-bold text-foreground">${fmtMoney(amount)}</span>
-                </div>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-4" align="end">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold">{t("filters")}</h4>
+                {activeCount > 0 && (
+                  <button onClick={() => { onTypeFilter("all"); onCategoryFilter("all"); onSort("date"); }}
+                    className="text-xs text-primary hover:underline">
+                    {t("clearAll")}
+                  </button>
+                )}
               </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${pct}%`, backgroundColor: meta.color }} />
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">{t("type")}</label>
+                <Select value={typeFilter} onValueChange={v => onTypeFilter(v as "all" | "credit" | "debit")}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("allTypes")}</SelectItem>
+                    <SelectItem value="credit">{t("cashIn")}</SelectItem>
+                    <SelectItem value="debit">{t("cashOut")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {categories.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">{t("category")}</label>
+                  <Select value={categoryFilter} onValueChange={onCategoryFilter}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t("allCategories")}</SelectItem>
+                      {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">{t("sortBy")}</label>
+                <Select value={sortBy} onValueChange={v => onSort(v as "date" | "amount")}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">{t("dateLatest")}</SelectItem>
+                    <SelectItem value="amount">{t("amountHighest")}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          );
-        })}
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Active filter badges */}
+      {activeCount > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {typeFilter !== "all" && (
+            <Badge variant="secondary" className="gap-1 text-[11px] pr-1 cursor-pointer" onClick={() => onTypeFilter("all")}>
+              {typeFilter === "credit" ? t("cashIn") : t("cashOut")}
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </Badge>
+          )}
+          {categoryFilter !== "all" && (
+            <Badge variant="secondary" className="gap-1 text-[11px] pr-1 cursor-pointer" onClick={() => onCategoryFilter("all")}>
+              {categoryFilter}
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </Badge>
+          )}
+          {sortBy !== "date" && (
+            <Badge variant="secondary" className="gap-1 text-[11px] pr-1 cursor-pointer" onClick={() => onSort("date")}>
+              {t("amountHighest")}
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </Badge>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Transaction Item ─────────────────────────────────────────
+
+function TransactionItem({
+  tx, onEdit, onDelete, currency, lang, t,
+}: {
+  tx: Transaction;
+  onEdit: (tx: Transaction) => void;
+  onDelete: (id: string) => void;
+  currency: Currency;
+  lang: FinanceLang;
+  t: ReturnType<typeof getT>;
+}) {
+  const meta      = getCategoryMeta(tx.category);
+  const isCredit  = tx.type === "credit";
+
+  return (
+    <div className="flex items-center gap-3 p-4 bg-card rounded-lg border border-border hover:shadow-sm transition-shadow animate-slide-in">
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isCredit ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-red-50 dark:bg-red-950/40"}`}>
+        {isCredit
+          ? <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" /></svg>
+          : <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" /></svg>
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate">{tx.title}</p>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+          <span>{fmtDate(tx.date, lang)}</span>
+          {tx.category && tx.category !== "Other" && <><span>•</span><span>{meta.icon} {tx.category}</span></>}
+          {tx.recurring && <><span>•</span><span className="text-blue-500">↻</span></>}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className={`text-sm font-semibold ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+          {isCredit ? "+" : "−"}{formatAmount(Number(tx.amount), currency.symbol)}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+              </svg>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(tx)}>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              {t("edit")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDelete(tx.id)} className="text-destructive focus:text-destructive">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              {t("delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
 }
 
-// ─── Entry Row ────────────────────────────────────────────────
+// ─── Transaction Form Dialog ──────────────────────────────────
 
-function EntryRow({ tx, onEdit }: { tx: Transaction; onEdit: (tx: Transaction) => void }) {
-  const meta = getCategoryMeta(tx.category);
-  const isCredit = tx.type === "credit";
-  return (
-    <button
-      onClick={() => onEdit(tx)}
-      className="w-full flex items-center gap-3 py-3 text-left active:bg-muted/40 transition-colors rounded-xl px-1"
-    >
-      <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0"
-        style={{ backgroundColor: meta.color + "22" }}>
-        {meta.icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground leading-snug truncate">{tx.title}</p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-[10px] text-muted-foreground">{tx.category}</span>
-          {tx.recurring && (
-            <span className="text-[9px] bg-blue-50 dark:bg-blue-950/50 text-blue-500 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-bold">
-              Recurring
-            </span>
-          )}
-        </div>
-      </div>
-      <p className={`text-sm font-bold shrink-0 ${isCredit ? "text-emerald-500" : "text-red-500"}`}>
-        {isCredit ? "+" : "−"}${fmtMoney(Number(tx.amount))}
-      </p>
-    </button>
-  );
-}
-
-// ─── Add / Edit Modal ─────────────────────────────────────────
-
-function EntryModal({
-  open, onClose, editTx, defaultType, onSaved, onDeleted,
+function TransactionFormDialog({
+  open, onOpenChange, editTx, defaultType,
+  onSaved, currency, t,
 }: {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (v: boolean) => void;
   editTx: Transaction | null;
   defaultType: TxType;
   onSaved: (tx: Transaction) => void;
-  onDeleted: (id: string) => void;
+  currency: Currency;
+  t: ReturnType<typeof getT>;
 }) {
-  const [type, setType] = useState<TxType>(defaultType);
-  const [amount, setAmount] = useState("");
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Other");
-  const [date, setDate] = useState(todayStr());
-  const [recurring, setRecurring] = useState(false);
-  const [recurringDay, setRecurringDay] = useState<number>(1);
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [showCatPicker, setShowCatPicker] = useState(false);
+  const [type,       setType]       = useState<TxType>(defaultType);
+  const [amount,     setAmount]     = useState("");
+  const [title,      setTitle]      = useState("");
+  const [category,   setCategory]   = useState("Other");
+  const [date,       setDate]       = useState(todayStr());
+  const [recurring,  setRecurring]  = useState(false);
+  const [recDay,     setRecDay]     = useState(1);
+  const [saving,     setSaving]     = useState(false);
+  const [showCat,    setShowCat]    = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     if (editTx) {
-      setType(editTx.type);
-      setAmount(String(editTx.amount));
-      setTitle(editTx.title);
-      setCategory(editTx.category);
-      setDate(editTx.date);
-      setRecurring(editTx.recurring);
-      setRecurringDay(editTx.recurring_day ?? 1);
-      setNotes(editTx.notes ?? "");
+      setType(editTx.type); setAmount(String(editTx.amount)); setTitle(editTx.title);
+      setCategory(editTx.category); setDate(editTx.date); setRecurring(editTx.recurring);
+      setRecDay(editTx.recurring_day ?? 1);
     } else {
-      setType(defaultType);
-      setAmount("");
-      setTitle("");
-      setCategory("Other");
-      setDate(todayStr());
-      setRecurring(false);
-      setRecurringDay(1);
-      setNotes("");
+      setType(defaultType); setAmount(""); setTitle(""); setCategory("Other");
+      setDate(todayStr()); setRecurring(false); setRecDay(1);
     }
-    setTimeout(() => amountRef.current?.focus(), 100);
+    setShowCat(false);
+    setTimeout(() => amountRef.current?.focus(), 150);
   }, [open, editTx, defaultType]);
 
   const handleSave = async () => {
     if (!amount || !title.trim()) return;
     setSaving(true);
     const payload: TransactionInsert = {
-      title: title.trim(),
-      amount: parseFloat(amount),
-      type,
-      category,
-      date,
-      recurring,
-      recurring_day: recurring ? recurringDay : null,
-      notes: notes.trim() || null,
+      title: title.trim(), amount: parseFloat(amount), type, category,
+      date, recurring, recurring_day: recurring ? recDay : null, notes: null,
     };
-    let res;
-    if (editTx) {
-      res = await updateTransaction(editTx.id, payload);
-    } else {
-      res = await createTransaction(payload);
-    }
+    const res = editTx
+      ? await updateTransaction(editTx.id, payload)
+      : await createTransaction(payload);
     setSaving(false);
-    if (res.data) { onSaved(res.data); onClose(); }
+    if (res.data) { onSaved(res.data); onOpenChange(false); }
   };
-
-  const handleDelete = async () => {
-    if (!editTx) return;
-    setDeleting(true);
-    await deleteTransaction(editTx.id);
-    setDeleting(false);
-    onDeleted(editTx.id);
-    onClose();
-  };
-
-  if (!open) return null;
 
   const catMeta = getCategoryMeta(category);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden rounded-2xl">
+        <DialogHeader className="px-6 pt-6 pb-0">
+          <DialogTitle className="text-lg font-semibold">
+            {editTx ? t("editEntry") : t("newEntry")}
+          </DialogTitle>
+        </DialogHeader>
 
-      {/* Dialog */}
-      <div className="relative w-full sm:max-w-md bg-white dark:bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl border border-border/30 overflow-hidden">
+        <div className="px-6 pt-5 pb-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* Type toggle */}
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => setType("credit")}
+              className={`flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                type === "credit"
+                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                  : "border-border hover:border-emerald-300"
+              }`}>
+              <svg className={`w-5 h-5 ${type === "credit" ? "text-emerald-500" : "text-muted-foreground"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" />
+              </svg>
+              <span className={`font-medium text-sm ${type === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                {t("cashIn")}
+              </span>
+            </button>
+            <button type="button" onClick={() => setType("debit")}
+              className={`flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                type === "debit"
+                  ? "border-red-500 bg-red-50 dark:bg-red-950/30"
+                  : "border-border hover:border-red-300"
+              }`}>
+              <svg className={`w-5 h-5 ${type === "debit" ? "text-red-500" : "text-muted-foreground"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
+              </svg>
+              <span className={`font-medium text-sm ${type === "debit" ? "text-red-500" : "text-muted-foreground"}`}>
+                {t("cashOut")}
+              </span>
+            </button>
+          </div>
 
-        {/* Drag handle (mobile) */}
-        <div className="flex justify-center pt-3 sm:hidden">
-          <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
-        </div>
-
-        {/* Type Toggle — full width at top */}
-        <div className="flex gap-0 mt-3 mx-4 mb-4 bg-muted rounded-2xl p-1 border border-border/40">
-          <button
-            onClick={() => setType("credit")}
-            className={`flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-              type === "credit"
-                ? "bg-emerald-500 text-white shadow-sm"
-                : "text-muted-foreground"
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-            Cash In
-          </button>
-          <button
-            onClick={() => setType("debit")}
-            className={`flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-              type === "debit"
-                ? "bg-red-500 text-white shadow-sm"
-                : "text-muted-foreground"
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
-            </svg>
-            Cash Out
-          </button>
-        </div>
-
-        <div className="px-4 pb-6 space-y-4 max-h-[75vh] overflow-y-auto">
-
-          {/* Amount — Big and prominent */}
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Amount
+          {/* Amount */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">
+              {t("amount")} ({currency.symbol})
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-lg font-semibold">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">{currency.symbol}</span>
               <input
                 ref={amountRef}
-                type="number"
-                inputMode="decimal"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl pl-9 pr-4 py-3.5 text-xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30"
+                type="number" step="0.01" min="0.01" inputMode="decimal"
+                placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)}
+                className="w-full border border-input rounded-lg pl-9 pr-3 py-2.5 text-lg font-bold text-foreground bg-background placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>
 
-          {/* Remark / Description */}
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Remark
-            </label>
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">{t("description")}</label>
             <textarea
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder={type === "credit" ? "What was this for? e.g. Brand deal, Salary..." : "What did you spend on?"}
-              rows={2}
-              className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 resize-none"
+              value={title} onChange={e => setTitle(e.target.value)}
+              placeholder={t("whatWasThisFor")} rows={2}
+              className="w-full border border-input rounded-lg px-3 py-2.5 text-sm text-foreground bg-background placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
             />
           </div>
 
-          {/* Category picker */}
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Category (Optional)
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowCatPicker(v => !v)}
-              className="w-full flex items-center gap-3 bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground focus:outline-none"
-            >
-              <span className="text-lg">{catMeta.icon}</span>
-              <span className="flex-1 text-left font-medium">{category}</span>
-              <svg className={`w-4 h-4 text-muted-foreground transition-transform ${showCatPicker ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Category */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">{t("categoryOptional")}</label>
+            <button type="button" onClick={() => setShowCat(v => !v)}
+              className="w-full flex items-center gap-2 border border-input rounded-lg px-3 py-2.5 bg-background text-sm text-foreground hover:bg-accent transition-colors">
+              <span className="text-base">{catMeta.icon}</span>
+              <span className="flex-1 text-left">{category}</span>
+              <svg className={`w-4 h-4 text-muted-foreground transition-transform ${showCat ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
-            {showCatPicker && (
-              <div className="mt-2 grid grid-cols-4 gap-1.5">
+            {showCat && (
+              <div className="grid grid-cols-4 gap-1.5 pt-1">
                 {CATEGORIES.map(c => (
-                  <button
-                    key={c.key}
-                    onClick={() => { setCategory(c.key); setShowCatPicker(false); }}
-                    className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-center transition-all border text-[10px] font-medium ${
+                  <button key={c.key} onClick={() => { setCategory(c.key); setShowCat(false); }}
+                    className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-[10px] font-medium border transition-all ${
                       category === c.key
-                        ? "border-primary/50 bg-primary/10 text-primary"
-                        : "border-border/30 bg-muted/30 text-muted-foreground"
-                    }`}
-                  >
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-muted/30 text-muted-foreground hover:bg-accent"
+                    }`}>
                     <span className="text-base">{c.icon}</span>
-                    <span className="leading-tight">{c.key}</span>
+                    <span className="leading-tight text-center">{c.key}</span>
                   </button>
                 ))}
               </div>
@@ -486,102 +609,168 @@ function EntryModal({
           </div>
 
           {/* Date */}
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              Date
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30"
-            />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">{t("date")}</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="w-full border border-input rounded-lg px-3 py-2.5 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
           </div>
 
-          {/* Recurring toggle */}
-          <div className="flex items-center justify-between bg-muted/40 border border-border/30 rounded-2xl px-4 py-3">
+          {/* Recurring */}
+          <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border">
             <div>
-              <p className="text-sm font-semibold text-foreground">Recurring</p>
-              <p className="text-[10px] text-muted-foreground">Repeats every month</p>
+              <p className="text-sm font-medium text-foreground">{t("recurring")}</p>
+              <p className="text-xs text-muted-foreground">{t("repeatMonthly")}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setRecurring(v => !v)}
-              className={`w-11 h-6 rounded-full transition-colors relative ${recurring ? "bg-primary" : "bg-muted-foreground/30"}`}
-            >
+            <button type="button" onClick={() => setRecurring(v => !v)}
+              className={`w-11 h-6 rounded-full transition-colors relative ${recurring ? "bg-primary" : "bg-muted-foreground/30"}`}>
               <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${recurring ? "translate-x-5" : "translate-x-0.5"}`} />
             </button>
           </div>
           {recurring && (
-            <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
-                Day of Month
-              </label>
-              <input
-                type="number"
-                min={1} max={31}
-                value={recurringDay}
-                onChange={e => setRecurringDay(Number(e.target.value))}
-                className="w-full bg-muted/50 dark:bg-muted/30 border border-border/40 rounded-2xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">{t("dayOfMonth")}</label>
+              <input type="number" min={1} max={31} value={recDay} onChange={e => setRecDay(Number(e.target.value))}
+                className="w-full border border-input rounded-lg px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           )}
 
           {/* Submit */}
-          <button
-            onClick={handleSave}
-            disabled={saving || !amount || !title.trim()}
-            className={`w-full h-12 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm ${
-              type === "credit"
-                ? "bg-emerald-500 hover:bg-emerald-600"
-                : "bg-red-500 hover:bg-red-600"
-            }`}
-          >
-            {saving ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Saving...
-              </span>
-            ) : editTx ? "Update Entry" : type === "credit" ? "Add Cash In" : "Add Cash Out"}
+          <button onClick={handleSave} disabled={saving || !amount || !title.trim()}
+            className={`w-full h-11 rounded-xl text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 ${
+              type === "credit" ? "bg-emerald-500 hover:bg-emerald-600" : "bg-red-500 hover:bg-red-600"
+            }`}>
+            {saving
+              ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t("saving")}</span>
+              : editTx ? t("updateEntry") : type === "credit" ? t("addCashIn") : t("addCashOut")
+            }
           </button>
-
-          {/* Delete (edit mode) */}
-          {editTx && (
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="w-full h-10 rounded-2xl text-sm font-semibold text-red-500 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-            >
-              {deleting ? "Deleting..." : "Delete Entry"}
-            </button>
-          )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Settings Sheet ───────────────────────────────────────────
+
+function SettingsSheet({
+  open, onClose, currency, onCurrencyChange, lang, onLangChange, t,
+}: {
+  open: boolean; onClose: () => void;
+  currency: Currency; onCurrencyChange: (code: string) => void;
+  lang: FinanceLang; onLangChange: (l: FinanceLang) => void;
+  t: ReturnType<typeof getT>;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={v => !v && onClose()}>
+      <SheetContent side="left" className="w-[280px] p-0">
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="p-5 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-base font-bold text-foreground">{t("finance")}</p>
+                <p className="text-xs text-muted-foreground">{t("bookKeeping")}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Settings */}
+          <div className="flex-1 p-5 space-y-6 overflow-y-auto">
+            {/* Currency */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("currency")}</p>
+              <Select value={currency.code} onValueChange={onCurrencyChange}>
+                <SelectTrigger className="w-full h-10">
+                  <SelectValue>
+                    <span className="flex items-center gap-2">
+                      <span className="font-bold text-base">{currency.symbol}</span>
+                      <span className="text-muted-foreground">{currency.code}</span>
+                      <span className="text-xs text-muted-foreground">— {currency.name}</span>
+                    </span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {CURRENCIES.map(c => (
+                    <SelectItem key={c.code} value={c.code}>
+                      <span className="flex items-center gap-2">
+                        <span>{c.flag}</span>
+                        <span className="font-medium w-6">{c.symbol}</span>
+                        <span>{c.code}</span>
+                        <span className="text-muted-foreground text-xs">— {c.name}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Language */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("language")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(["en", "si"] as FinanceLang[]).map(l => (
+                  <button key={l} onClick={() => onLangChange(l)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                      lang === l
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-accent"
+                    }`}>
+                    <span>{l === "en" ? "🇬🇧" : "🇱🇰"}</span>
+                    <span>{l === "en" ? t("english") : t("sinhala")}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────
 
 export default function FinancePage() {
-  const [month, setMonth] = useState(currentMonth);
-  const [monthly, setMonthly] = useState<Transaction[]>([]);
-  const [recurring, setRecurring] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [missingTable, setMissingTable] = useState(false);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "credit" | "debit">("all");
-  const [showBreakdown, setShowBreakdown] = useState(false);
+  // Currency + Language (persisted)
+  const [currency, setCurrencyState] = useState<Currency>(getSavedCurrency);
+  const [lang, setLangState]         = useState<FinanceLang>(getSavedLang);
+  const t = useMemo(() => getT(lang), [lang]);
 
-  // Modal state
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const [defaultType, setDefaultType] = useState<TxType>("credit");
+  const changeCurrency = (code: string) => {
+    const found = CURRENCIES.find(c => c.code === code);
+    if (found) { setCurrencyState(found); saveCurrency(code); }
+  };
+  const changeLang = (l: FinanceLang) => { setLangState(l); saveLang(l); };
+
+  // Data
+  const [month,     setMonth]     = useState(currentMonth);
+  const [monthly,   setMonthly]   = useState<Transaction[]>([]);
+  const [recurring, setRecurring] = useState<Transaction[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [missingTable, setMissingTable] = useState(false);
+
+  // UI state
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [formOpen,     setFormOpen]     = useState(false);
+  const [editTx,       setEditTx]       = useState<Transaction | null>(null);
+  const [defaultType,  setDefaultType]  = useState<TxType>("credit");
+  const [deleteId,     setDeleteId]     = useState<string | null>(null);
+
+  // Filters
+  const [search,     setSearch]     = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "credit" | "debit">("all");
+  const [catFilter,  setCatFilter]  = useState("all");
+  const [sortBy,     setSortBy]     = useState<"date" | "amount">("date");
 
   const load = useCallback(async () => {
     setLoading(true);
     const res = await getTransactions(month);
-    if (res.error === "42P01" || (res.error && res.error.includes("does not exist"))) {
+    if (res.error && (res.error === "42P01" || res.error.includes("does not exist"))) {
       setMissingTable(true);
     } else if (res.data) {
       setMonthly(res.data.monthly);
@@ -592,251 +781,231 @@ export default function FinancePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Display list = monthly + recurring projected
-  const allDisplay = [
-    ...monthly,
-    ...recurring.map(tx => ({ ...tx, id: `rec-${tx.id}`, date: recurringDateForMonth(tx, month) })),
-  ];
+  // Filtered + sorted list
+  const filtered = useMemo(() => {
+    let list = [...monthly];
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(tx =>
+        tx.title.toLowerCase().includes(q) ||
+        String(tx.amount).includes(q) ||
+        tx.category?.toLowerCase().includes(q)
+      );
+    }
+    if (typeFilter !== "all") list = list.filter(tx => tx.type === typeFilter);
+    if (catFilter  !== "all") list = list.filter(tx => tx.category === catFilter);
+    if (sortBy === "amount") list.sort((a, b) => Number(b.amount) - Number(a.amount));
+    else                      list.sort((a, b) => b.date.localeCompare(a.date));
+    return list;
+  }, [monthly, search, typeFilter, catFilter, sortBy]);
 
-  const filtered = allDisplay.filter(tx => {
-    const matchesFilter = filter === "all" || tx.type === filter;
-    const matchesSearch = !search || tx.title.toLowerCase().includes(search.toLowerCase())
-      || tx.category.toLowerCase().includes(search.toLowerCase())
-      || String(tx.amount).includes(search);
-    return matchesFilter && matchesSearch;
-  });
-
-  const grouped = groupByDate(filtered);
+  const categories = useMemo(() => {
+    const cats = new Set(monthly.map(t => t.category).filter(Boolean));
+    return Array.from(cats).sort() as string[];
+  }, [monthly]);
 
   const openAdd = (type: TxType) => {
-    setEditTx(null);
-    setDefaultType(type);
-    setModalOpen(true);
+    setEditTx(null); setDefaultType(type); setFormOpen(true);
   };
-
   const openEdit = (tx: Transaction) => {
-    if (tx.id.startsWith("rec-")) return; // don't edit recurring projections
-    setEditTx(tx);
-    setDefaultType(tx.type);
-    setModalOpen(true);
+    setEditTx(tx); setDefaultType(tx.type); setFormOpen(true);
   };
 
   const handleSaved = (tx: Transaction) => {
     if (tx.recurring) {
       setRecurring(prev => {
-        const idx = prev.findIndex(t => t.id === tx.id);
-        return idx >= 0 ? prev.map(t => t.id === tx.id ? tx : t) : [...prev, tx];
+        const idx = prev.findIndex(x => x.id === tx.id);
+        return idx >= 0 ? prev.map(x => x.id === tx.id ? tx : x) : [...prev, tx];
       });
     } else {
       setMonthly(prev => {
-        const idx = prev.findIndex(t => t.id === tx.id);
-        return idx >= 0 ? prev.map(t => t.id === tx.id ? tx : t) : [tx, ...prev];
+        const idx = prev.findIndex(x => x.id === tx.id);
+        return idx >= 0 ? prev.map(x => x.id === tx.id ? tx : x) : [tx, ...prev];
       });
     }
   };
 
-  const handleDeleted = (id: string) => {
-    setMonthly(prev => prev.filter(t => t.id !== id));
-    setRecurring(prev => prev.filter(t => t.id !== id));
+  const handleConfirmDelete = async () => {
+    if (!deleteId) return;
+    await deleteTransaction(deleteId);
+    setMonthly(prev  => prev.filter(x => x.id !== deleteId));
+    setRecurring(prev => prev.filter(x => x.id !== deleteId));
+    setDeleteId(null);
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-background overflow-hidden">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
 
-      {/* ── Top Header ─────────────────────────────────────── */}
-      <div className="bg-white dark:bg-card border-b border-border/40 px-4 pt-safe-top pb-3 shrink-0 shadow-sm">
-        <div className="flex items-center justify-between">
-          {/* Month navigator */}
-          <div className="flex items-center gap-1">
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 bg-card border-b border-border shadow-sm px-4 pt-safe-top">
+        <div className="flex items-center justify-between h-14">
+          {/* Hamburger + Logo */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setMonth(prevMonth(month))}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted active:bg-muted/80 transition-colors"
+              onClick={() => setSettingsOpen(true)}
+              className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <button
-              onClick={() => setMonth(currentMonth())}
-              className="px-3 h-9 rounded-xl text-sm font-bold text-foreground border border-border/40 bg-white dark:bg-muted/30 min-w-[130px] text-center"
-            >
-              {monthLabel(month)}
-            </button>
-            <button
-              onClick={() => setMonth(nextMonth(month))}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted active:bg-muted/80 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+              </div>
+              <span className="font-bold text-foreground">{t("finance")}</span>
+            </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => openAdd("credit")}
-              className="flex items-center gap-1.5 px-3 h-9 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-xl shadow-sm active:scale-95 transition-all"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-              </svg>
-              Cash In
-            </button>
-            <button
-              onClick={() => openAdd("debit")}
-              className="flex items-center gap-1.5 px-3 h-9 bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold rounded-xl shadow-sm active:scale-95 transition-all"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
-              </svg>
-              Cash Out
-            </button>
-          </div>
+          {/* Currency badge */}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex items-center gap-1.5 h-9 px-3 bg-muted border border-border rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
+          >
+            <span className="font-bold text-base">{currency.symbol}</span>
+            <span className="text-muted-foreground">{currency.code}</span>
+            <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
-      </div>
 
-      {/* ── Scrollable Body ─────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
+        {/* Month selector */}
+        <div className="flex items-center justify-between py-2.5">
+          <button onClick={() => setMonth(prevMonth(month))}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setMonth(currentMonth())}
+            className="flex items-center gap-2 px-4 h-9 rounded-lg bg-card border border-border font-semibold text-sm text-foreground hover:bg-accent transition-colors"
+          >
+            {monthLabel(month, lang)}
+          </button>
+          <button onClick={() => setMonth(nextMonth(month))}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {/* ── Scrollable Body ─────────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-28">
 
         {/* Missing table banner */}
         {missingTable && (
-          <div className="mx-4 mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl">
-            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">⚙️ Setup Required</p>
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">⚙️ {t("setupRequired")}</p>
             <p className="text-xs text-amber-600 dark:text-amber-500">
-              Run <code className="bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded text-[10px]">supabase/migrations/003_finance_tracker.sql</code> in your Supabase SQL Editor to activate Finance Tracker.
+              Run <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">supabase/migrations/003_finance_tracker.sql</code> in Supabase SQL Editor.
             </p>
           </div>
         )}
 
-        {/* Summary Cards */}
-        <SummaryCards monthly={monthly} recurring={recurring} month={month} />
+        {/* Balance Cards */}
+        <BalanceCards monthly={monthly} recurring={recurring} month={month} currency={currency} t={t} />
 
         {/* AI Insights */}
-        <AIInsightsBanner transactions={monthly} recurring={recurring} month={month} />
-
-        {/* Breakdown toggle */}
-        {monthly.length > 0 && (
-          <div className="px-4 mt-3">
-            <button
-              onClick={() => setShowBreakdown(v => !v)}
-              className="w-full flex items-center justify-between bg-white dark:bg-card border border-border/40 rounded-2xl px-4 py-3 text-sm font-semibold text-foreground shadow-sm"
-            >
-              <span className="flex items-center gap-2">
-                <span>📊</span> Spending Breakdown
-              </span>
-              <svg className={`w-4 h-4 text-muted-foreground transition-transform ${showBreakdown ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {showBreakdown && <CategoryBreakdown transactions={[...monthly, ...recurring]} />}
-          </div>
-        )}
+        <AIInsights transactions={monthly} recurring={recurring} month={month} currency={currency} t={t} />
 
         {/* Search + Filter */}
-        <div className="px-4 mt-3 flex gap-2">
-          <div className="flex-1 relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by remark or amount..."
-              className="w-full bg-white dark:bg-card border border-border/40 rounded-2xl pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
-            />
-          </div>
-          <div className="flex gap-1 bg-white dark:bg-card border border-border/40 rounded-2xl p-1 shadow-sm">
-            {(["all", "credit", "debit"] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold capitalize transition-all ${
-                  filter === f
-                    ? f === "credit" ? "bg-emerald-500 text-white"
-                      : f === "debit" ? "bg-red-500 text-white"
-                      : "bg-primary text-primary-foreground"
-                    : "text-muted-foreground"
-                }`}>
-                {f === "credit" ? "In" : f === "debit" ? "Out" : "All"}
-              </button>
-            ))}
-          </div>
-        </div>
+        <SearchFilter
+          search={search} onSearch={setSearch}
+          typeFilter={typeFilter} onTypeFilter={setTypeFilter}
+          categoryFilter={catFilter} onCategoryFilter={setCatFilter}
+          sortBy={sortBy} onSort={setSortBy}
+          categories={categories} t={t}
+        />
 
         {/* Entries */}
-        <div className="mx-4 mt-3 mb-24">
-          <h3 className="text-sm font-bold text-foreground mb-2 flex items-center justify-between">
-            Entries
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">{t("entries")}</h2>
             {filtered.length > 0 && (
-              <span className="text-[10px] text-muted-foreground font-normal">{filtered.length} transactions</span>
+              <span className="text-xs text-muted-foreground">{filtered.length} {t("transactions")}</span>
             )}
-          </h3>
+          </div>
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-3" />
-              <p className="text-xs">Loading entries...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-card border border-border rounded-lg animate-pulse" />
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="bg-white dark:bg-card border border-border/40 rounded-2xl flex flex-col items-center justify-center py-12 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center text-2xl mb-3">
-                📋
-              </div>
-              <p className="text-sm font-semibold text-foreground mb-1">No entries yet</p>
-              <p className="text-xs text-muted-foreground text-center px-8">
-                {search ? "No transactions match your search." : "Start adding your cash in and cash out entries"}
-              </p>
-              {!search && (
-                <div className="flex gap-2 mt-4">
-                  <button onClick={() => openAdd("credit")}
-                    className="px-4 py-2 bg-emerald-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-transform">
-                    + Cash In
-                  </button>
-                  <button onClick={() => openAdd("debit")}
-                    className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-transform">
-                    − Cash Out
-                  </button>
-                </div>
-              )}
+            <div className="flex flex-col items-center justify-center py-12 text-center bg-card border border-border rounded-xl">
+              <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center text-3xl mb-3">📋</div>
+              <p className="text-sm font-semibold text-foreground mb-1">{t("noEntriesYet")}</p>
+              <p className="text-xs text-muted-foreground px-8">{t("startAdding")}</p>
             </div>
           ) : (
-            <div className="bg-white dark:bg-card border border-border/40 rounded-2xl shadow-sm overflow-hidden">
-              {grouped.map(([dateStr, txs], gi) => (
-                <div key={dateStr}>
-                  {/* Date header */}
-                  <div className={`px-4 py-2 bg-muted/30 flex items-center justify-between ${gi > 0 ? "border-t border-border/30" : ""}`}>
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
-                      {fmtDate(dateStr)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {txs.length} {txs.length === 1 ? "entry" : "entries"}
-                    </span>
-                  </div>
-                  {/* Transaction rows */}
-                  <div className="px-3 divide-y divide-border/20">
-                    {txs.map(tx => (
-                      <EntryRow key={tx.id} tx={tx} onEdit={openEdit} />
-                    ))}
-                  </div>
-                </div>
+            <div className="space-y-2">
+              {filtered.map(tx => (
+                <TransactionItem
+                  key={tx.id} tx={tx}
+                  onEdit={openEdit} onDelete={setDeleteId}
+                  currency={currency} lang={lang} t={t}
+                />
               ))}
             </div>
           )}
         </div>
+      </main>
 
-        {/* Bottom padding for nav */}
-        <div className="h-safe-bottom" />
+      {/* ── Fixed Bottom: Cash In / Cash Out ────────────────────── */}
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+60px)] left-0 right-0 z-20 bg-card/80 backdrop-blur-md border-t border-border px-4 py-3">
+        <div className="flex gap-3">
+          <button onClick={() => openAdd("credit")}
+            className="flex-1 flex items-center justify-center gap-2 h-11 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl shadow-sm active:scale-[0.98] transition-all">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            {t("cashIn")}
+          </button>
+          <button onClick={() => openAdd("debit")}
+            className="flex-1 flex items-center justify-center gap-2 h-11 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl shadow-sm active:scale-[0.98] transition-all">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+            </svg>
+            {t("cashOut")}
+          </button>
+        </div>
       </div>
 
-      {/* Add/Edit Modal */}
-      <EntryModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        editTx={editTx}
-        defaultType={defaultType}
-        onSaved={handleSaved}
-        onDeleted={handleDeleted}
+      {/* ── Dialogs + Sheets ────────────────────────────────────── */}
+      <SettingsSheet
+        open={settingsOpen} onClose={() => setSettingsOpen(false)}
+        currency={currency} onCurrencyChange={changeCurrency}
+        lang={lang} onLangChange={changeLang} t={t}
       />
+
+      <TransactionFormDialog
+        open={formOpen} onOpenChange={setFormOpen}
+        editTx={editTx} defaultType={defaultType}
+        onSaved={handleSaved} currency={currency} t={t}
+      />
+
+      <AlertDialog open={!!deleteId} onOpenChange={open => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteEntry")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("deleteConfirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              {t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
