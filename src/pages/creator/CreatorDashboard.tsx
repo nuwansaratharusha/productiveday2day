@@ -87,13 +87,13 @@ function startOfMonth(): string {
 
 function StatCard({ value, label, icon, accent }: { value: string | number; label: string; icon: string; accent?: string }) {
   return (
-    <div className="rounded-2xl bg-card border border-border/50 p-3.5 flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${accent || "bg-muted"}`}>
+    <div className="rounded-2xl bg-card border border-border/50 p-2.5 sm:p-3.5 flex flex-col sm:flex-row items-center sm:items-center gap-1.5 sm:gap-3">
+      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-base sm:text-xl shrink-0 ${accent || "bg-muted"}`}>
         {icon}
       </div>
-      <div>
-        <div className="text-xl font-bold text-foreground leading-none">{value}</div>
-        <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">{label}</div>
+      <div className="text-center sm:text-left min-w-0">
+        <div className="text-lg sm:text-xl font-bold text-foreground leading-none">{value}</div>
+        <div className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 font-medium leading-tight">{label}</div>
       </div>
     </div>
   );
@@ -327,17 +327,17 @@ export default function CreatorDashboard() {
             </div>
 
             {/* Quick actions */}
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { to: "/creator/ideas",    emoji: "💡", label: "Ideas Vault", sub: "Capture & manage",  from: "from-blue-500/10",   border: "border-blue-200/40 dark:border-blue-800/40" },
-                { to: "/creator/pipeline", emoji: "🎬", label: "Pipeline",    sub: "Kanban board",      from: "from-purple-500/10", border: "border-purple-200/40 dark:border-purple-800/40" },
-                { to: "/creator/scripts",  emoji: "✍️", label: "Scripts",     sub: "AI-powered",        from: "from-orange-500/10", border: "border-orange-200/40 dark:border-orange-800/40" },
+                { to: "/creator/ideas",    emoji: "💡", label: "Ideas",    sub: "Capture",   from: "from-blue-500/10",   border: "border-blue-200/40 dark:border-blue-800/40" },
+                { to: "/creator/pipeline", emoji: "🎬", label: "Pipeline", sub: "Kanban",    from: "from-purple-500/10", border: "border-purple-200/40 dark:border-purple-800/40" },
+                { to: "/creator/scripts",  emoji: "✍️", label: "Scripts",  sub: "AI-powered", from: "from-orange-500/10", border: "border-orange-200/40 dark:border-orange-800/40" },
               ].map(item => (
                 <button key={item.to} onClick={() => navigate(item.to)}
-                  className={`rounded-2xl bg-gradient-to-b ${item.from} to-transparent border ${item.border} p-3.5 text-center hover:shadow-md active:scale-95 transition-all`}>
-                  <div className="text-2xl mb-1">{item.emoji}</div>
-                  <div className="text-xs font-bold text-foreground">{item.label}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{item.sub}</div>
+                  className={`rounded-2xl bg-gradient-to-b ${item.from} to-transparent border ${item.border} p-2.5 sm:p-3.5 text-center hover:shadow-md active:scale-95 transition-all`}>
+                  <div className="text-xl sm:text-2xl mb-0.5">{item.emoji}</div>
+                  <div className="text-[11px] sm:text-xs font-bold text-foreground">{item.label}</div>
+                  <div className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 hidden sm:block">{item.sub}</div>
                 </button>
               ))}
             </div>

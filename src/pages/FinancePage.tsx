@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 // ─── Figma Design Tokens ─────────────────────────────────────
 const FG = {
@@ -180,19 +181,34 @@ function BalanceCards({ monthly, recurring, month, currency, t }: {
   ];
 
   return (
-    // Mobile: horizontal scroll | Desktop: 3-col grid
-    <div className="grid grid-cols-3 gap-3">
-      {cards.map((c) => (
-        <div key={c.label}
-          style={{ background: FG.cardBg, border: `1px solid ${FG.cardBorder}`, borderRadius: 6 }}
-          className="p-3 sm:p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span style={{ color: FG.labelMuted, fontSize: 10, fontWeight: 400 }} className="leading-tight">
+    // Mobile: Net balance full-width + In/Out two-col | Desktop (≥640): 3-col
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+      {cards.map((c, i) => (
+        <div
+          key={c.label}
+          style={{ background: FG.cardBg, border: `1px solid ${FG.cardBorder}`, borderRadius: 8 }}
+          className={cn(
+            "p-3 sm:p-4 min-w-0",
+            // Net Balance spans full width on mobile, then 1 col from sm breakpoint
+            i === 0 ? "col-span-2 sm:col-span-1" : "col-span-1"
+          )}
+        >
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <span
+              style={{ color: FG.labelMuted, fontWeight: 500 }}
+              className="leading-tight text-[11px] truncate"
+            >
               {c.label}
             </span>
-            {c.icon}
+            <span className="flex-shrink-0">{c.icon}</span>
           </div>
-          <p style={{ color: c.color, fontSize: 19, fontWeight: 400 }} className="leading-tight font-['Inter',sans-serif]">
+          <p
+            style={{ color: c.color, fontWeight: 600, fontFamily: "Inter, sans-serif" }}
+            className={cn(
+              "leading-tight truncate",
+              i === 0 ? "text-[22px] sm:text-[20px]" : "text-[16px] sm:text-[20px]"
+            )}
+          >
             {c.label === t("netBalance") && net < 0 ? "−" : ""}
             {formatAmount(Math.abs(c.amount), currency.symbol)}
           </p>
@@ -345,11 +361,11 @@ function SearchFilterBar({ search, onSearch, typeFilter, onTypeFilter, catFilter
   const active = [typeFilter !== "all", catFilter !== "all", sortBy !== "date"].filter(Boolean).length;
 
   return (
-    <div style={{ display: "flex", gap: 8 }}>
-      {/* Search — Figma: bg #f8f9fa, border #e2e5ea, placeholder #afb3bb */}
-      <div style={{ flex: 1, position: "relative" }}>
+    <div style={{ display: "flex", gap: 8, width: "100%", minWidth: 0 }}>
+      {/* Search — mobile-optimised height + padding */}
+      <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
         <svg style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}
-          width="10" height="10" viewBox="0 0 12 12" fill="none">
+          width="13" height="13" viewBox="0 0 12 12" fill="none">
           <circle cx="5" cy="5" r="4" stroke="#afb3bb" strokeWidth="1.3"/>
           <path d="M8.5 8.5L11 11" stroke="#afb3bb" strokeWidth="1.3" strokeLinecap="round"/>
         </svg>
@@ -358,35 +374,43 @@ function SearchFilterBar({ search, onSearch, typeFilter, onTypeFilter, catFilter
           placeholder={t("searchPlaceholder")}
           style={{
             width: "100%", background: FG.searchBg, border: `1px solid ${FG.searchBorder}`,
-            borderRadius: 6, padding: "8px 32px 8px 28px",
-            fontSize: 10, color: FG.textPrimary,
+            borderRadius: 8, padding: "10px 34px 10px 32px",
+            color: FG.textPrimary,
             outline: "none", boxSizing: "border-box",
+            minHeight: 40,
           }}
           onFocus={e => e.target.style.borderColor = "#2761d8"}
           onBlur={e => e.target.style.borderColor = FG.searchBorder}
         />
         {search && (
           <button onClick={() => onSearch("")}
-            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: FG.labelMuted }}>
+            aria-label="Clear"
+            style={{
+              position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+              color: FG.labelMuted, width: 24, height: 24, borderRadius: 12,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "none", background: "transparent", fontSize: 18, lineHeight: 1,
+            }}>
             ×
           </button>
         )}
       </div>
 
-      {/* Filters button — Figma: bg #fefefe, border #d9d8de, text #83868d */}
+      {/* Filters button — larger tap target, keeps Figma colors */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button style={{
             background: FG.filterBg, border: `1px solid ${FG.filterBorder}`,
-            borderRadius: 7, padding: "6px 12px",
+            borderRadius: 8, padding: "0 14px",
             display: "flex", alignItems: "center", gap: 6,
+            minHeight: 40, flexShrink: 0,
           }}>
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
               <path d="M1 3h10M3 6h6M5 9h2" stroke={FG.filterText} strokeWidth="1.3" strokeLinecap="round"/>
             </svg>
-            <span style={{ color: FG.filterText, fontSize: 10, fontWeight: 400 }}>{t("filters")}</span>
+            <span style={{ color: FG.filterText, fontSize: 12, fontWeight: 500 }}>{t("filters")}</span>
             {active > 0 && (
-              <Badge variant="secondary" className="h-4 w-4 p-0 text-[9px] flex items-center justify-center rounded-full">
+              <Badge variant="secondary" className="h-4 min-w-[16px] px-1 text-[9px] flex items-center justify-center rounded-full">
                 {active}
               </Badge>
             )}
@@ -1033,76 +1057,66 @@ export default function FinancePage() {
   };
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: FG.pageBg, overflow: "hidden", fontFamily: "Inter, sans-serif" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        background: FG.pageBg,
+        fontFamily: "Inter, sans-serif",
+        width: "100%",
+        maxWidth: "100vw",
+        overflowX: "hidden",
+      }}
+    >
 
-      {/* ── Header — matches Figma top bar exactly ─────────────── */}
-      <div style={{
-        background: FG.headerBg,
-        borderBottom: `1px solid ${FG.headerBorder}`,
-        padding: "0 16px",
-        flexShrink: 0,
-        zIndex: 20,
-      }}>
-        {/* Row 1: logo + currency + action buttons */}
+      {/* ── Header — sticky top, mobile-optimised ─────────────── */}
+      <div
+        style={{
+          background: FG.headerBg,
+          borderBottom: `1px solid ${FG.headerBorder}`,
+          padding: "0 12px",
+          flexShrink: 0,
+          zIndex: 20,
+          position: "sticky",
+          top: 0,
+        }}
+      >
+        {/* Row 1: hamburger + logo + currency (Cash In/Out moved to fixed bottom bar for mobile) */}
         <div style={{ display: "flex", alignItems: "center", height: 52, gap: 8 }}>
           {/* Hamburger */}
           <button onClick={() => setSidebarOpen(true)}
-            style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
-              borderRadius: 6, border: "none", background: "transparent", cursor: "pointer" }}>
-            <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+            aria-label="Menu"
+            style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", flexShrink: 0 }}>
+            <svg width="18" height="14" viewBox="0 0 16 12" fill="none">
               <path d="M1 1h14M1 6h14M1 11h14" stroke={FG.textSecondary} strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </button>
 
           {/* Logo text */}
-          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <rect width="24" height="24" rx="4" fill="#2761d8"/>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, flex: 1 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+              <rect width="24" height="24" rx="5" fill="#2761d8"/>
               <path d="M5 7h14M5 11h10M5 15h12M5 19h8" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
             </svg>
-            <span style={{ color: FG.textSecondary, fontSize: 13, fontWeight: 700 }}>{t("finance")}</span>
+            <span style={{ color: FG.textSecondary, fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t("finance")}</span>
           </div>
 
-          <div style={{ flex: 1 }} />
-
-          {/* Currency selector — Figma: bg #fdfcfd, border #d3d4db, text #a9adb6 */}
+          {/* Currency selector — compact on mobile */}
           <button onClick={() => setSidebarOpen(true)}
+            aria-label="Currency"
             style={{
-              display: "flex", alignItems: "center", gap: 5,
+              display: "flex", alignItems: "center", gap: 4,
               background: FG.currencyBg, border: `1px solid ${FG.currencyBorder}`,
-              borderRadius: 8, padding: "5px 10px", cursor: "pointer",
+              borderRadius: 8, padding: "8px 12px", cursor: "pointer",
+              flexShrink: 0, minHeight: 36,
             }}>
-            <span style={{ color: FG.currencyText, fontSize: 12 }}>{currency.symbol}</span>
-            <span style={{ color: FG.currencyText, fontSize: 11 }}>{currency.code}</span>
+            <span style={{ color: FG.textSecondary, fontSize: 13, fontWeight: 700 }}>{currency.symbol}</span>
+            <span style={{ color: FG.currencyText, fontSize: 11, fontWeight: 600 }}>{currency.code}</span>
             <svg width="8" height="5" viewBox="0 0 10 6" fill="none">
               <path d="M1 1l4 4 4-4" stroke={FG.currencyText} strokeWidth="1.3" strokeLinecap="round"/>
             </svg>
-          </button>
-
-          {/* Cash In — Figma: green button */}
-          <button onClick={() => openAdd("credit")}
-            style={{
-              display: "flex", alignItems: "center", gap: 5,
-              background: FG.amountGreen, border: `1px solid ${FG.amountGreen}`,
-              borderRadius: 8, padding: "6px 12px", cursor: "pointer",
-            }}>
-            <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-              <path d="M5 1v8M1 5h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>{t("cashIn")}</span>
-          </button>
-
-          {/* Cash Out — Figma: red button */}
-          <button onClick={() => openAdd("debit")}
-            style={{
-              display: "flex", alignItems: "center", gap: 5,
-              background: FG.amountRed, border: `1px solid ${FG.amountRed}`,
-              borderRadius: 8, padding: "6px 12px", cursor: "pointer",
-            }}>
-            <svg width="9" height="2" viewBox="0 0 10 2" fill="none">
-              <path d="M1 1h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>{t("cashOut")}</span>
           </button>
         </div>
 
@@ -1137,8 +1151,8 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* ── Scrollable Body ─────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px" }}>
+      {/* ── Body — natural page scroll (not nested scroll) ────── */}
+      <div style={{ flex: 1, padding: "14px 14px 90px", width: "100%", maxWidth: "100%" }}>
 
         {/* Setup banner */}
         {missingTable && (
@@ -1215,36 +1229,38 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* ── Fixed bottom: Cash In | Cash Out (mobile) ─────────── */}
+      {/* ── Fixed bottom: Cash In | Cash Out — sits just above the app's bottom nav ── */}
       <div style={{
         position: "fixed",
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 60px)",
-        left: 0, right: 0, zIndex: 20,
-        background: "rgba(254,254,254,0.92)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)",
+        left: 0, right: 0, zIndex: 30,
+        background: "rgba(254,254,254,0.95)",
         backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
         borderTop: `1px solid ${FG.headerBorder}`,
-        padding: "10px 16px",
-        display: "flex", gap: 12,
+        padding: "10px 14px",
+        display: "flex", gap: 10,
+        maxWidth: "100vw",
       }}>
         <button onClick={() => openAdd("credit")} style={{
-          flex: 1, height: 40, borderRadius: 8, border: "none",
+          flex: 1, height: 46, borderRadius: 10, border: "none",
           background: FG.amountGreen, color: "#fff",
-          fontSize: 12, fontWeight: 600, cursor: "pointer",
+          fontSize: 14, fontWeight: 700, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}>
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M5 1v8M1 5h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+          <svg width="12" height="12" viewBox="0 0 10 10" fill="none">
+            <path d="M5 1v8M1 5h8" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
           </svg>
           {t("cashIn")}
         </button>
         <button onClick={() => openAdd("debit")} style={{
-          flex: 1, height: 40, borderRadius: 8, border: "none",
+          flex: 1, height: 46, borderRadius: 10, border: "none",
           background: FG.amountRed, color: "#fff",
-          fontSize: 12, fontWeight: 600, cursor: "pointer",
+          fontSize: 14, fontWeight: 700, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}>
-          <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
-            <path d="M1 1h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+          <svg width="12" height="3" viewBox="0 0 10 2" fill="none">
+            <path d="M1 1h8" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
           </svg>
           {t("cashOut")}
         </button>

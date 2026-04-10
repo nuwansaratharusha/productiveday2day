@@ -24,13 +24,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
   if (hideNav) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 pb-[68px]">{children}</main>
+    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
+      <main
+        className="flex-1 w-full"
+        style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" }}
+      >
+        {children}
+      </main>
 
-      {/* Bottom navigation — 6 items, compact */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-background/90 backdrop-blur-xl"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        <div className="flex items-center justify-around px-0 py-1.5 max-w-lg mx-auto">
+      {/* Bottom navigation — 7 items, mobile-first */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-background/95 backdrop-blur-xl"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
+        <div className="flex items-stretch justify-around px-1 py-1 max-w-lg mx-auto">
           {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
             const isActive = to === "/"
               ? location.pathname === "/"
@@ -41,23 +48,27 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 key={to}
                 to={to}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 flex-1 py-1 rounded-lg transition-all duration-200 min-w-0",
+                  "flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 py-1.5 rounded-lg transition-all duration-200",
+                  "active:scale-95",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
+                style={{ minHeight: 48 }}
               >
                 <div className={cn(
                   "relative flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200",
                   isActive && "bg-primary/10"
                 )}>
-                  <Icon className={cn("w-[15px] h-[15px]", isActive && "stroke-[2.2px]")} />
+                  <Icon className={cn("w-4 h-4", isActive && "stroke-[2.2px]")} />
                   {isActive && (
                     <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
                   )}
                 </div>
-                <span className={cn(
-                  "text-[9px] font-medium leading-none truncate w-full text-center",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "text-[9px] font-semibold leading-none truncate w-full text-center px-0.5",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
                   {label}
                 </span>
               </NavLink>

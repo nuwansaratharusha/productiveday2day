@@ -210,10 +210,10 @@ export default function AnalyticsPage() {
               <div className="divide-y divide-border/20">
                 {[...stats].reverse().map((s) => {
                   const rate = s.total > 0 ? s.done / s.total : 0;
-                  const dayLabel = new Date(s.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+                  const dayLabel = new Date(s.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
                   return (
-                    <div key={s.date} className="flex items-center gap-3 px-4 py-2.5">
-                      <div className="text-xs text-muted-foreground w-28 flex-shrink-0">{dayLabel}</div>
+                    <div key={s.date} className="flex items-center gap-2 px-4 py-2.5">
+                      <div className="text-xs text-muted-foreground w-20 flex-shrink-0 truncate">{dayLabel}</div>
                       <div className="flex-1 h-1.5 rounded-full bg-muted/30 overflow-hidden">
                         <div
                           className="h-full rounded-full bg-primary/70 transition-all"
