@@ -1,6 +1,7 @@
 // =============================================================
-// ProductiveDay — Finance Tracker  (CashBook2-style UI)
-// Currency selector · Language (EN / සි) · AI Insights
+// ProductiveDay — Finance Tracker
+// UI pixel-matched to Figma (CashBook design)
+// Colors, typography, spacing extracted directly from Figma
 // =============================================================
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -15,7 +16,6 @@ import {
 } from "@/lib/finance/currencies";
 import { getT, type FinanceLang } from "@/lib/finance/translations";
 
-// ── shadcn/ui ─────────────────────────────────────────────────
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -33,30 +33,69 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Sheet, SheetContent,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+
+// ─── Figma Design Tokens ─────────────────────────────────────
+const FG = {
+  pageBg:          "#f8f9fa",
+  cardBg:          "#ffffff",
+  cardBorder:      "#e3e6ea",
+  headerBg:        "#fefefe",
+  headerBorder:    "#e3e5ea",
+  sidebarBg:       "#fefefe",
+  sidebarDivider:  "#e9eaee",
+  sectionLabel:    "#babdc2",
+  navText:         "#9498a0",
+  navTextActive:   "#858890",
+  navActiveBg:     "#f1f2f4",
+  amountGreen:     "#52be8b",
+  amountRed:       "#e35758",
+  labelMuted:      "#a7abb4",
+  labelMuted2:     "#b1b5be",
+  textPrimary:     "#62656d",
+  textSecondary:   "#6c7178",
+  aiBg:            "#f1f4fc",
+  aiBorder:        "#dae2f6",
+  aiTitle:         "#6c7178",
+  aiSubtitle:      "#b1b5be",
+  analyzeBg:       "#2761d8",
+  analyzeBorder:   "#1250d9",
+  analyzeText:     "#9eb6ec",
+  searchBg:        "#f8f9fa",
+  searchBorder:    "#e2e5ea",
+  filterBg:        "#fefefe",
+  filterBorder:    "#d9d8de",
+  filterText:      "#83868d",
+  monthBg:         "#fefefe",
+  monthBorder:     "#e9eaee",
+  monthText:       "#62666d",
+  currencyBg:      "#fdfcfd",
+  currencyBorder:  "#d3d4db",
+  currencyText:    "#a9adb6",
+  entriesLabel:    "#62656d",
+  emptyTitle:      "#808389",
+  emptySubtitle:   "#acb0b9",
+  userBg:          "#f2f3f5",
+  userText:        "#8c909a",
+  userInitialsBg:  "#acc0ef",
+  txDescText:      "#3a3d44",
+  txMetaText:      "#9a9da6",
+} as const;
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-function todayStr() {
-  return new Date().toISOString().split("T")[0];
+function todayStr() { return new Date().toISOString().split("T")[0]; }
+
+function fmtDateLong(d: string) {
+  return new Date(d + "T12:00:00").toLocaleDateString("en-US", {
+    day: "numeric", month: "short", year: "numeric",
+  });
 }
 
-function fmtDate(d: string, lang: FinanceLang) {
-  return new Date(d + "T12:00:00").toLocaleDateString(
-    lang === "si" ? "si-LK" : "en-US",
-    { weekday: "short", month: "short", day: "numeric" }
-  );
-}
-
-function monthLabel(m: string, lang: FinanceLang) {
+function monthLabel(m: string) {
   const [y, mo] = m.split("-").map(Number);
-  return new Date(y, mo - 1, 1).toLocaleDateString(
-    lang === "si" ? "si-LK" : "en-US",
-    { month: "long", year: "numeric" }
-  );
+  return new Date(y, mo - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 function prevMonth(m: string) {
@@ -84,16 +123,12 @@ function recurringDateForMonth(tx: Transaction, month: string) {
 }
 
 // ─── Balance Cards ────────────────────────────────────────────
+// Matches Figma: white bg, #e3e6ea border, 6px radius, icons top-right
+// Amount: #52be8b (green) or #e35758 (red), label: #a7abb4
 
-function BalanceCards({
-  monthly, recurring, month, currency,
-  t,
-}: {
-  monthly: Transaction[];
-  recurring: Transaction[];
-  month: string;
-  currency: Currency;
-  t: ReturnType<typeof getT>;
+function BalanceCards({ monthly, recurring, month, currency, t }: {
+  monthly: Transaction[]; recurring: Transaction[];
+  month: string; currency: Currency; t: ReturnType<typeof getT>;
 }) {
   const all = [
     ...monthly,
@@ -103,71 +138,83 @@ function BalanceCards({
   const totalOut = all.filter(x => x.type === "debit" ).reduce((s, x) => s + Number(x.amount), 0);
   const net      = totalIn - totalOut;
 
+  const cards = [
+    {
+      label: t("netBalance"),
+      amount: net,
+      color: net >= 0 ? FG.amountGreen : FG.amountRed,
+      icon: (
+        // Wallet icon — matches Figma (blue-ish wallet)
+        <svg width="17" height="16" viewBox="0 0 20 18" fill="none">
+          <rect x="1" y="4" width="18" height="13" rx="2" stroke="#6B8FD8" strokeWidth="1.5"/>
+          <path d="M1 8h18" stroke="#6B8FD8" strokeWidth="1.5"/>
+          <circle cx="15" cy="12" r="1.5" fill="#6B8FD8"/>
+          <path d="M5 1h10" stroke="#6B8FD8" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+    {
+      label: t("totalCashIn"),
+      amount: totalIn,
+      color: FG.amountGreen,
+      icon: (
+        // Arrow up circle — green, matches Figma
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="9" stroke="#52be8b" strokeWidth="1.5"/>
+          <path d="M10 13V7M7 10l3-3 3 3" stroke="#52be8b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+    },
+    {
+      label: t("totalCashOut"),
+      amount: totalOut,
+      color: FG.amountRed,
+      icon: (
+        // Arrow down circle — red, matches Figma
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="9" stroke="#e35758" strokeWidth="1.5"/>
+          <path d="M10 7v6M13 10l-3 3-3-3" stroke="#e35758" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+    },
+  ];
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
-      {/* Net Balance */}
-      <div className="min-w-[150px] flex-shrink-0 bg-card border border-border rounded-xl p-4 shadow-sm animate-fade-in">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-muted-foreground">{t("netBalance")}</span>
-          <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-          </svg>
+    // Mobile: horizontal scroll | Desktop: 3-col grid
+    <div className="grid grid-cols-3 gap-3">
+      {cards.map((c) => (
+        <div key={c.label}
+          style={{ background: FG.cardBg, border: `1px solid ${FG.cardBorder}`, borderRadius: 6 }}
+          className="p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span style={{ color: FG.labelMuted, fontSize: 10, fontWeight: 400 }} className="leading-tight">
+              {c.label}
+            </span>
+            {c.icon}
+          </div>
+          <p style={{ color: c.color, fontSize: 19, fontWeight: 400 }} className="leading-tight font-['Inter',sans-serif]">
+            {c.label === t("netBalance") && net < 0 ? "−" : ""}
+            {formatAmount(Math.abs(c.amount), currency.symbol)}
+          </p>
         </div>
-        <p className={`text-xl font-bold ${net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
-          {net < 0 && "−"}{formatAmount(Math.abs(net), currency.symbol)}
-        </p>
-        {net < 0 && <p className="text-[10px] text-red-400 mt-0.5 font-medium">{t("overBudget")}</p>}
-      </div>
-
-      {/* Cash In */}
-      <div className="min-w-[150px] flex-shrink-0 bg-card border border-border rounded-xl p-4 shadow-sm animate-fade-in">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-muted-foreground">{t("totalCashIn")}</span>
-          <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" />
-          </svg>
-        </div>
-        <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-          {formatAmount(totalIn, currency.symbol)}
-        </p>
-      </div>
-
-      {/* Cash Out */}
-      <div className="min-w-[150px] flex-shrink-0 bg-card border border-border rounded-xl p-4 shadow-sm animate-fade-in">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-muted-foreground">{t("totalCashOut")}</span>
-          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
-          </svg>
-        </div>
-        <p className="text-xl font-bold text-red-500 dark:text-red-400">
-          {formatAmount(totalOut, currency.symbol)}
-        </p>
-      </div>
+      ))}
     </div>
   );
 }
 
-// ─── AI Insights ──────────────────────────────────────────────
+// ─── AI Insights Card ─────────────────────────────────────────
+// Figma: bg #f1f4fc, border 2px #dae2f6, Analyze btn #2761d8
 
-function AIInsights({
-  transactions, recurring, month, currency, t,
-}: {
-  transactions: Transaction[];
-  recurring: Transaction[];
-  month: string;
-  currency: Currency;
-  t: ReturnType<typeof getT>;
+function AIInsightsCard({ monthly, recurring, month, currency, t }: {
+  monthly: Transaction[]; recurring: Transaction[];
+  month: string; currency: Currency; t: ReturnType<typeof getT>;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [insights, setInsights] = useState<{ type: string; title: string; desc: string }[]>([]);
+  const [expanded,  setExpanded]  = useState(false);
+  const [loading,   setLoading]   = useState(false);
+  const [insights,  setInsights]  = useState<{ title: string; desc: string; icon: string }[]>([]);
 
   const all = [
-    ...transactions,
+    ...monthly,
     ...recurring.map(tx => ({ ...tx, date: recurringDateForMonth(tx, month) })),
   ];
   const totalIn  = all.filter(x => x.type === "credit").reduce((s, x) => s + Number(x.amount), 0);
@@ -177,280 +224,308 @@ function AIInsights({
   const handleAnalyze = () => {
     setLoading(true);
     setTimeout(() => {
-      const savRate = totalIn > 0 ? Math.round((net / totalIn) * 100) : 0;
+      const rate = totalIn > 0 ? Math.round((net / totalIn) * 100) : 0;
       const catMap: Record<string, number> = {};
       all.filter(x => x.type === "debit").forEach(x => {
         catMap[x.category] = (catMap[x.category] || 0) + Number(x.amount);
       });
-      const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
-
+      const top = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
       const items = [];
-      if (net >= 0) {
-        items.push({ type: "tip", title: "Great savings rate!", desc: `You saved ${formatAmount(net, currency.symbol)} — ${savRate}% of income this month.` });
+      if (all.length === 0) {
+        items.push({ icon: "💡", title: "Start tracking", desc: "Add your first transactions to get personalised financial insights." });
+      } else if (net >= 0) {
+        items.push({ icon: "📈", title: `${rate}% savings rate`, desc: `You saved ${formatAmount(net, currency.symbol)} this month. Keep it up!` });
       } else {
-        items.push({ type: "warning", title: "Over budget", desc: `You spent ${formatAmount(Math.abs(net), currency.symbol)} more than you earned. Review your expenses.` });
+        items.push({ icon: "📉", title: "Over budget", desc: `You spent ${formatAmount(Math.abs(net), currency.symbol)} more than you earned. Consider cutting back.` });
       }
-      if (topCat) {
-        items.push({ type: "trend", title: "Top spending category", desc: `${topCat[0]} accounts for ${formatAmount(topCat[1], currency.symbol)} of your expenses.` });
-      }
-      if (transactions.length === 0) {
-        items.push({ type: "suggestion", title: "Start tracking!", desc: "Add your first transactions to get personalized insights." });
-      } else if (savRate > 20) {
-        items.push({ type: "suggestion", title: "Consider investing", desc: `With a ${savRate}% savings rate, you could invest the surplus for better returns.` });
-      }
-
+      if (top) items.push({ icon: "📊", title: "Top spending", desc: `${top[0]} is your biggest expense at ${formatAmount(top[1], currency.symbol)}.` });
+      if (rate > 20 && net > 0) items.push({ icon: "💡", title: "Invest surplus", desc: `With a ${rate}% savings rate, consider putting the surplus to work.` });
       setInsights(items);
       setExpanded(true);
       setLoading(false);
     }, 900);
   };
 
-  const iconForType = (type: string) => {
-    if (type === "tip")        return <span className="text-emerald-500">📈</span>;
-    if (type === "warning")    return <span className="text-red-500">📉</span>;
-    if (type === "trend")      return <span className="text-blue-500">📊</span>;
-    if (type === "suggestion") return <span className="text-amber-500">💡</span>;
-    return <span>✨</span>;
-  };
+  return (
+    <div style={{
+      background: FG.aiBg,
+      border: `2px solid ${FG.aiBorder}`,
+      borderRadius: 6,
+      padding: "12px 16px",
+    }}>
+      <div className="flex items-center gap-3">
+        {/* Figma AI icon — sparkle/lightning in a small circle */}
+        <div style={{
+          width: 28, height: 28, borderRadius: 6, background: "rgba(39,97,216,0.12)",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1L9.5 6.5H15L10.5 9.5L12 15L8 12L4 15L5.5 9.5L1 6.5H6.5L8 1Z"
+              fill="#2761d8" />
+          </svg>
+        </div>
 
-  if (!expanded) {
-    return (
-      <div className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground">{t("aiInsights")}</p>
-            <p className="text-xs text-muted-foreground truncate">{t("getSmartAnalysis")}</p>
-          </div>
+        <div className="flex-1 min-w-0">
+          <p style={{ color: FG.aiTitle, fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>
+            {t("aiInsights")}
+          </p>
+          {!expanded && (
+            <p style={{ color: FG.aiSubtitle, fontSize: 10, fontWeight: 400 }}>
+              {t("getSmartAnalysis")}
+            </p>
+          )}
+        </div>
+
+        {!expanded ? (
           <button
             onClick={handleAnalyze}
             disabled={loading}
-            className="shrink-0 flex items-center gap-1.5 px-3 h-9 bg-primary text-primary-foreground text-xs font-semibold rounded-lg shadow-sm active:scale-95 transition-all disabled:opacity-60"
+            style={{
+              background: FG.analyzeBg,
+              border: `1px solid ${FG.analyzeBorder}`,
+              borderRadius: 7,
+              padding: "6px 12px",
+              display: "flex", alignItems: "center", gap: 6,
+              flexShrink: 0,
+            }}
           >
             {loading
-              ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              : <>{t("analyze")} <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></>
+              ? <span style={{ width: 12, height: 12, border: "2px solid rgba(158,182,236,0.3)", borderTopColor: "#9eb6ec", borderRadius: "50%", display: "inline-block", animation: "spin 0.8s linear infinite" }} />
+              : <>
+                  <span style={{ color: FG.analyzeText, fontSize: 11, fontWeight: 400 }}>{t("analyze")}</span>
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 5h6M5 2l3 3-3 3" stroke="#9eb6ec" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </>
             }
           </button>
-        </div>
+        ) : (
+          <button onClick={() => setExpanded(false)} style={{ color: FG.aiSubtitle, fontSize: 16, lineHeight: 1 }}>×</button>
+        )}
       </div>
-    );
-  }
 
-  return (
-    <div className="bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 rounded-xl p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span className="text-sm font-semibold text-foreground">{t("aiInsights")}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleAnalyze} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border">{t("refresh")}</button>
-          <button onClick={() => setExpanded(false)} className="text-muted-foreground hover:text-foreground">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-      </div>
-      {insights.map((ins, i) => (
-        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-card border border-border hover:bg-accent/30 transition-colors">
-          <div className="p-1.5 rounded-md bg-background shrink-0">{iconForType(ins.type)}</div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">{ins.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{ins.desc}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Search + Filter ──────────────────────────────────────────
-
-function SearchFilter({
-  search, onSearch,
-  typeFilter, onTypeFilter,
-  categoryFilter, onCategoryFilter,
-  sortBy, onSort,
-  categories, t,
-}: {
-  search: string; onSearch: (v: string) => void;
-  typeFilter: "all" | "credit" | "debit"; onTypeFilter: (v: "all" | "credit" | "debit") => void;
-  categoryFilter: string; onCategoryFilter: (v: string) => void;
-  sortBy: "date" | "amount"; onSort: (v: "date" | "amount") => void;
-  categories: string[];
-  t: ReturnType<typeof getT>;
-}) {
-  const [open, setOpen] = useState(false);
-  const activeCount = [typeFilter !== "all", categoryFilter !== "all", sortBy !== "date"].filter(Boolean).length;
-
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            value={search} onChange={e => onSearch(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="w-full bg-card border border-border rounded-lg pl-9 pr-8 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          {search && (
-            <button onClick={() => onSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          )}
-        </div>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button className="flex items-center gap-1.5 px-3 py-2 bg-card border border-border rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-              </svg>
-              <span className="hidden sm:inline">{t("filters")}</span>
-              {activeCount > 0 && (
-                <Badge variant="secondary" className="h-4 w-4 p-0 flex items-center justify-center text-[10px] rounded-full">
-                  {activeCount}
-                </Badge>
-              )}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-72 p-4" align="end">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold">{t("filters")}</h4>
-                {activeCount > 0 && (
-                  <button onClick={() => { onTypeFilter("all"); onCategoryFilter("all"); onSort("date"); }}
-                    className="text-xs text-primary hover:underline">
-                    {t("clearAll")}
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">{t("type")}</label>
-                <Select value={typeFilter} onValueChange={v => onTypeFilter(v as "all" | "credit" | "debit")}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("allTypes")}</SelectItem>
-                    <SelectItem value="credit">{t("cashIn")}</SelectItem>
-                    <SelectItem value="debit">{t("cashOut")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {categories.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">{t("category")}</label>
-                  <Select value={categoryFilter} onValueChange={onCategoryFilter}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t("allCategories")}</SelectItem>
-                      {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">{t("sortBy")}</label>
-                <Select value={sortBy} onValueChange={v => onSort(v as "date" | "amount")}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">{t("dateLatest")}</SelectItem>
-                    <SelectItem value="amount">{t("amountHighest")}</SelectItem>
-                  </SelectContent>
-                </Select>
+      {expanded && insights.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {insights.map((ins, i) => (
+            <div key={i} style={{
+              background: FG.cardBg, border: `1px solid ${FG.cardBorder}`, borderRadius: 6, padding: "10px 12px",
+              display: "flex", alignItems: "flex-start", gap: 10,
+            }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>{ins.icon}</span>
+              <div>
+                <p style={{ color: FG.textPrimary, fontSize: 11, fontWeight: 600 }}>{ins.title}</p>
+                <p style={{ color: FG.labelMuted, fontSize: 10, marginTop: 2 }}>{ins.desc}</p>
               </div>
             </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {/* Active filter badges */}
-      {activeCount > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {typeFilter !== "all" && (
-            <Badge variant="secondary" className="gap-1 text-[11px] pr-1 cursor-pointer" onClick={() => onTypeFilter("all")}>
-              {typeFilter === "credit" ? t("cashIn") : t("cashOut")}
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </Badge>
-          )}
-          {categoryFilter !== "all" && (
-            <Badge variant="secondary" className="gap-1 text-[11px] pr-1 cursor-pointer" onClick={() => onCategoryFilter("all")}>
-              {categoryFilter}
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </Badge>
-          )}
-          {sortBy !== "date" && (
-            <Badge variant="secondary" className="gap-1 text-[11px] pr-1 cursor-pointer" onClick={() => onSort("date")}>
-              {t("amountHighest")}
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </Badge>
-          )}
+          ))}
+          <button
+            onClick={handleAnalyze}
+            style={{ color: FG.analyzeBg, fontSize: 10, fontWeight: 500, marginTop: 4 }}
+          >
+            {t("refresh")} ↺
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Transaction Item ─────────────────────────────────────────
+// ─── Search + Filter ──────────────────────────────────────────
+// Figma: search bg #f8f9fa, border #e2e5ea | filter btn bg #fefefe, border #d9d8de
 
-function TransactionItem({
-  tx, onEdit, onDelete, currency, lang, t,
-}: {
-  tx: Transaction;
-  onEdit: (tx: Transaction) => void;
-  onDelete: (id: string) => void;
-  currency: Currency;
-  lang: FinanceLang;
-  t: ReturnType<typeof getT>;
+function SearchFilterBar({ search, onSearch, typeFilter, onTypeFilter, catFilter, onCatFilter,
+  sortBy, onSort, categories, t }: {
+  search: string; onSearch: (v: string) => void;
+  typeFilter: "all" | "credit" | "debit"; onTypeFilter: (v: "all" | "credit" | "debit") => void;
+  catFilter: string; onCatFilter: (v: string) => void;
+  sortBy: "date" | "amount"; onSort: (v: "date" | "amount") => void;
+  categories: string[]; t: ReturnType<typeof getT>;
 }) {
-  const meta      = getCategoryMeta(tx.category);
-  const isCredit  = tx.type === "credit";
+  const [open, setOpen] = useState(false);
+  const active = [typeFilter !== "all", catFilter !== "all", sortBy !== "date"].filter(Boolean).length;
 
   return (
-    <div className="flex items-center gap-3 p-4 bg-card rounded-lg border border-border hover:shadow-sm transition-shadow animate-slide-in">
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isCredit ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-red-50 dark:bg-red-950/40"}`}>
+    <div style={{ display: "flex", gap: 8 }}>
+      {/* Search — Figma: bg #f8f9fa, border #e2e5ea, placeholder #afb3bb */}
+      <div style={{ flex: 1, position: "relative" }}>
+        <svg style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}
+          width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <circle cx="5" cy="5" r="4" stroke="#afb3bb" strokeWidth="1.3"/>
+          <path d="M8.5 8.5L11 11" stroke="#afb3bb" strokeWidth="1.3" strokeLinecap="round"/>
+        </svg>
+        <input
+          value={search} onChange={e => onSearch(e.target.value)}
+          placeholder={t("searchPlaceholder")}
+          style={{
+            width: "100%", background: FG.searchBg, border: `1px solid ${FG.searchBorder}`,
+            borderRadius: 6, padding: "8px 32px 8px 28px",
+            fontSize: 10, color: FG.textPrimary,
+            outline: "none", boxSizing: "border-box",
+          }}
+          onFocus={e => e.target.style.borderColor = "#2761d8"}
+          onBlur={e => e.target.style.borderColor = FG.searchBorder}
+        />
+        {search && (
+          <button onClick={() => onSearch("")}
+            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: FG.labelMuted }}>
+            ×
+          </button>
+        )}
+      </div>
+
+      {/* Filters button — Figma: bg #fefefe, border #d9d8de, text #83868d */}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button style={{
+            background: FG.filterBg, border: `1px solid ${FG.filterBorder}`,
+            borderRadius: 7, padding: "6px 12px",
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M1 3h10M3 6h6M5 9h2" stroke={FG.filterText} strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            <span style={{ color: FG.filterText, fontSize: 10, fontWeight: 400 }}>{t("filters")}</span>
+            {active > 0 && (
+              <Badge variant="secondary" className="h-4 w-4 p-0 text-[9px] flex items-center justify-center rounded-full">
+                {active}
+              </Badge>
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-4" align="end">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span style={{ color: FG.textPrimary, fontSize: 12, fontWeight: 600 }}>{t("filters")}</span>
+              {active > 0 && (
+                <button onClick={() => { onTypeFilter("all"); onCatFilter("all"); onSort("date"); }}
+                  style={{ color: FG.analyzeBg, fontSize: 11 }}>{t("clearAll")}</button>
+              )}
+            </div>
+            <div className="space-y-1">
+              <label style={{ color: FG.sectionLabel, fontSize: 10, fontWeight: 600 }}>{t("type")}</label>
+              <Select value={typeFilter} onValueChange={v => onTypeFilter(v as "all" | "credit" | "debit")}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("allTypes")}</SelectItem>
+                  <SelectItem value="credit">{t("cashIn")}</SelectItem>
+                  <SelectItem value="debit">{t("cashOut")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {categories.length > 0 && (
+              <div className="space-y-1">
+                <label style={{ color: FG.sectionLabel, fontSize: 10, fontWeight: 600 }}>{t("category")}</label>
+                <Select value={catFilter} onValueChange={onCatFilter}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("allCategories")}</SelectItem>
+                    {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-1">
+              <label style={{ color: FG.sectionLabel, fontSize: 10, fontWeight: 600 }}>{t("sortBy")}</label>
+              <Select value={sortBy} onValueChange={v => onSort(v as "date" | "amount")}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">{t("dateLatest")}</SelectItem>
+                  <SelectItem value="amount">{t("amountHighest")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// ─── Transaction Row ──────────────────────────────────────────
+// Figma: white card, border #e3e6ea, radius 6, arrow icon in circle bg
+
+function TxRow({ tx, onEdit, onDelete, currency }: {
+  tx: Transaction; onEdit: (tx: Transaction) => void;
+  onDelete: (id: string) => void; currency: Currency;
+}) {
+  const isCredit = tx.type === "credit";
+  const meta = getCategoryMeta(tx.category);
+
+  return (
+    <div style={{
+      background: FG.cardBg, border: `1px solid ${FG.cardBorder}`,
+      borderRadius: 6, padding: "12px 14px",
+      display: "flex", alignItems: "center", gap: 12,
+    }}>
+      {/* Arrow icon in circle */}
+      <div style={{
+        width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+        background: isCredit ? "rgba(82,190,139,0.12)" : "rgba(227,87,88,0.12)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
         {isCredit
-          ? <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" /></svg>
-          : <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" /></svg>
+          ? <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="9" stroke={FG.amountGreen} strokeWidth="1.5"/>
+              <path d="M10 13V7M7 10l3-3 3 3" stroke={FG.amountGreen} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          : <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="9" stroke={FG.amountRed} strokeWidth="1.5"/>
+              <path d="M10 7v6M13 10l-3 3-3-3" stroke={FG.amountRed} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
         }
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{tx.title}</p>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-          <span>{fmtDate(tx.date, lang)}</span>
-          {tx.category && tx.category !== "Other" && <><span>•</span><span>{meta.icon} {tx.category}</span></>}
-          {tx.recurring && <><span>•</span><span className="text-blue-500">↻</span></>}
+
+      {/* Description + meta */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ color: FG.txDescText, fontSize: 12, fontWeight: 500 }} className="truncate">
+          {tx.title}
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+          <span style={{ color: FG.txMetaText, fontSize: 10 }}>{fmtDateLong(tx.date)}</span>
+          {tx.category && tx.category !== "Other" && (
+            <>
+              <span style={{ color: FG.txMetaText, fontSize: 10 }}>•</span>
+              <span style={{ color: FG.txMetaText, fontSize: 10 }}>{meta.icon} {tx.category}</span>
+            </>
+          )}
+          {tx.recurring && (
+            <>
+              <span style={{ color: FG.txMetaText, fontSize: 10 }}>•</span>
+              <span style={{ color: "#6B8FD8", fontSize: 10 }}>↻ Recurring</span>
+            </>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <span className={`text-sm font-semibold ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+
+      {/* Amount + menu */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <span style={{ color: isCredit ? FG.amountGreen : FG.amountRed, fontSize: 13, fontWeight: 600 }}>
           {isCredit ? "+" : "−"}{formatAmount(Number(tx.amount), currency.symbol)}
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+            <button style={{
+              width: 28, height: 28, borderRadius: 6, border: `1px solid ${FG.cardBorder}`,
+              background: FG.cardBg, display: "flex", alignItems: "center", justifyContent: "center",
+              color: FG.navText,
+            }}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/>
               </svg>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="text-xs">
             <DropdownMenuItem onClick={() => onEdit(tx)}>
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              {t("edit")}
+              <svg className="w-3.5 h-3.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              Edit
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDelete(tx.id)} className="text-destructive focus:text-destructive">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              {t("delete")}
+              <svg className="w-3.5 h-3.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -461,28 +536,21 @@ function TransactionItem({
 
 // ─── Transaction Form Dialog ──────────────────────────────────
 
-function TransactionFormDialog({
-  open, onOpenChange, editTx, defaultType,
-  onSaved, currency, t,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  editTx: Transaction | null;
-  defaultType: TxType;
-  onSaved: (tx: Transaction) => void;
-  currency: Currency;
-  t: ReturnType<typeof getT>;
+function TxFormDialog({ open, onOpenChange, editTx, defaultType, onSaved, currency, t }: {
+  open: boolean; onOpenChange: (v: boolean) => void;
+  editTx: Transaction | null; defaultType: TxType;
+  onSaved: (tx: Transaction) => void; currency: Currency; t: ReturnType<typeof getT>;
 }) {
-  const [type,       setType]       = useState<TxType>(defaultType);
-  const [amount,     setAmount]     = useState("");
-  const [title,      setTitle]      = useState("");
-  const [category,   setCategory]   = useState("Other");
-  const [date,       setDate]       = useState(todayStr());
-  const [recurring,  setRecurring]  = useState(false);
-  const [recDay,     setRecDay]     = useState(1);
-  const [saving,     setSaving]     = useState(false);
-  const [showCat,    setShowCat]    = useState(false);
-  const amountRef = useRef<HTMLInputElement>(null);
+  const [type,      setType]      = useState<TxType>(defaultType);
+  const [amount,    setAmount]    = useState("");
+  const [title,     setTitle]     = useState("");
+  const [category,  setCategory]  = useState("Other");
+  const [date,      setDate]      = useState(todayStr());
+  const [recurring, setRecurring] = useState(false);
+  const [recDay,    setRecDay]    = useState(1);
+  const [saving,    setSaving]    = useState(false);
+  const [showCat,   setShowCat]   = useState(false);
+  const amtRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -495,15 +563,16 @@ function TransactionFormDialog({
       setDate(todayStr()); setRecurring(false); setRecDay(1);
     }
     setShowCat(false);
-    setTimeout(() => amountRef.current?.focus(), 150);
+    setTimeout(() => amtRef.current?.focus(), 150);
   }, [open, editTx, defaultType]);
 
   const handleSave = async () => {
     if (!amount || !title.trim()) return;
     setSaving(true);
     const payload: TransactionInsert = {
-      title: title.trim(), amount: parseFloat(amount), type, category,
-      date, recurring, recurring_day: recurring ? recDay : null, notes: null,
+      title: title.trim(), amount: parseFloat(amount), type,
+      category, date, recurring,
+      recurring_day: recurring ? recDay : null, notes: null,
     };
     const res = editTx
       ? await updateTransaction(editTx.id, payload)
@@ -513,95 +582,128 @@ function TransactionFormDialog({
   };
 
   const catMeta = getCategoryMeta(category);
+  const isCredit = type === "credit";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden rounded-2xl">
-        <DialogHeader className="px-6 pt-6 pb-0">
-          <DialogTitle className="text-lg font-semibold">
+      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden rounded-xl">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b" style={{ borderColor: FG.cardBorder }}>
+          <DialogTitle style={{ color: FG.textPrimary, fontSize: 16, fontWeight: 600 }}>
             {editTx ? t("editEntry") : t("newEntry")}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="px-6 pt-5 pb-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          {/* Type toggle */}
+        <div className="px-6 py-5 space-y-4 max-h-[78vh] overflow-y-auto">
+          {/* Type toggle — Figma style: border highlight */}
           <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setType("credit")}
-              className={`flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                type === "credit"
-                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                  : "border-border hover:border-emerald-300"
-              }`}>
-              <svg className={`w-5 h-5 ${type === "credit" ? "text-emerald-500" : "text-muted-foreground"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" />
-              </svg>
-              <span className={`font-medium text-sm ${type === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
-                {t("cashIn")}
-              </span>
-            </button>
-            <button type="button" onClick={() => setType("debit")}
-              className={`flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                type === "debit"
-                  ? "border-red-500 bg-red-50 dark:bg-red-950/30"
-                  : "border-border hover:border-red-300"
-              }`}>
-              <svg className={`w-5 h-5 ${type === "debit" ? "text-red-500" : "text-muted-foreground"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
-              </svg>
-              <span className={`font-medium text-sm ${type === "debit" ? "text-red-500" : "text-muted-foreground"}`}>
-                {t("cashOut")}
-              </span>
-            </button>
+            {(["credit", "debit"] as TxType[]).map(tp => (
+              <button key={tp} onClick={() => setType(tp)}
+                style={{
+                  padding: "12px 8px",
+                  borderRadius: 8,
+                  border: `2px solid ${type === tp
+                    ? tp === "credit" ? FG.amountGreen : FG.amountRed
+                    : FG.cardBorder}`,
+                  background: type === tp
+                    ? tp === "credit" ? "rgba(82,190,139,0.08)" : "rgba(227,87,88,0.08)"
+                    : FG.cardBg,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  transition: "all 0.15s",
+                }}>
+                {tp === "credit"
+                  ? <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                      <circle cx="10" cy="10" r="9" stroke={type === "credit" ? FG.amountGreen : FG.labelMuted} strokeWidth="1.5"/>
+                      <path d="M10 13V7M7 10l3-3 3 3" stroke={type === "credit" ? FG.amountGreen : FG.labelMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  : <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                      <circle cx="10" cy="10" r="9" stroke={type === "debit" ? FG.amountRed : FG.labelMuted} strokeWidth="1.5"/>
+                      <path d="M10 7v6M13 10l-3 3-3-3" stroke={type === "debit" ? FG.amountRed : FG.labelMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                }
+                <span style={{
+                  color: type === tp
+                    ? tp === "credit" ? FG.amountGreen : FG.amountRed
+                    : FG.labelMuted,
+                  fontSize: 12, fontWeight: 500,
+                }}>
+                  {tp === "credit" ? t("cashIn") : t("cashOut")}
+                </span>
+              </button>
+            ))}
           </div>
 
           {/* Amount */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">
+          <div>
+            <label style={{ color: FG.textSecondary, fontSize: 11, fontWeight: 500, display: "block", marginBottom: 6 }}>
               {t("amount")} ({currency.symbol})
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">{currency.symbol}</span>
-              <input
-                ref={amountRef}
-                type="number" step="0.01" min="0.01" inputMode="decimal"
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: FG.labelMuted, fontWeight: 600, fontSize: 14 }}>
+                {currency.symbol}
+              </span>
+              <input ref={amtRef} type="number" step="0.01" min="0.01" inputMode="decimal"
                 placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)}
-                className="w-full border border-input rounded-lg pl-9 pr-3 py-2.5 text-lg font-bold text-foreground bg-background placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                style={{
+                  width: "100%", border: `1px solid ${FG.cardBorder}`, borderRadius: 6,
+                  paddingLeft: 28, paddingRight: 12, paddingTop: 10, paddingBottom: 10,
+                  fontSize: 18, fontWeight: 700, color: isCredit ? FG.amountGreen : FG.amountRed,
+                  outline: "none", boxSizing: "border-box",
+                }}
+                onFocus={e => e.target.style.borderColor = "#2761d8"}
+                onBlur={e => e.target.style.borderColor = FG.cardBorder}
               />
             </div>
           </div>
 
           {/* Description */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">{t("description")}</label>
-            <textarea
-              value={title} onChange={e => setTitle(e.target.value)}
+          <div>
+            <label style={{ color: FG.textSecondary, fontSize: 11, fontWeight: 500, display: "block", marginBottom: 6 }}>
+              {t("description")}
+            </label>
+            <textarea value={title} onChange={e => setTitle(e.target.value)}
               placeholder={t("whatWasThisFor")} rows={2}
-              className="w-full border border-input rounded-lg px-3 py-2.5 text-sm text-foreground bg-background placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              style={{
+                width: "100%", border: `1px solid ${FG.cardBorder}`, borderRadius: 6,
+                padding: "10px 12px", fontSize: 12, color: FG.txDescText,
+                outline: "none", resize: "none", boxSizing: "border-box",
+              }}
+              onFocus={e => e.target.style.borderColor = "#2761d8"}
+              onBlur={e => e.target.style.borderColor = FG.cardBorder}
             />
           </div>
 
           {/* Category */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">{t("categoryOptional")}</label>
-            <button type="button" onClick={() => setShowCat(v => !v)}
-              className="w-full flex items-center gap-2 border border-input rounded-lg px-3 py-2.5 bg-background text-sm text-foreground hover:bg-accent transition-colors">
-              <span className="text-base">{catMeta.icon}</span>
-              <span className="flex-1 text-left">{category}</span>
-              <svg className={`w-4 h-4 text-muted-foreground transition-transform ${showCat ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <div>
+            <label style={{ color: FG.textSecondary, fontSize: 11, fontWeight: 500, display: "block", marginBottom: 6 }}>
+              {t("categoryOptional")}
+            </label>
+            <button onClick={() => setShowCat(v => !v)}
+              style={{
+                width: "100%", border: `1px solid ${FG.cardBorder}`, borderRadius: 6,
+                padding: "9px 12px", background: FG.cardBg,
+                display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box",
+              }}>
+              <span style={{ fontSize: 14 }}>{catMeta.icon}</span>
+              <span style={{ flex: 1, textAlign: "left", fontSize: 12, color: FG.txDescText }}>{category}</span>
+              <svg style={{ transform: showCat ? "rotate(180deg)" : "none", transition: "0.15s" }}
+                width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M2 4l4 4 4-4" stroke={FG.labelMuted} strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
             </button>
             {showCat && (
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginTop: 8 }}>
                 {CATEGORIES.map(c => (
                   <button key={c.key} onClick={() => { setCategory(c.key); setShowCat(false); }}
-                    className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-[10px] font-medium border transition-all ${
-                      category === c.key
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-muted/30 text-muted-foreground hover:bg-accent"
-                    }`}>
-                    <span className="text-base">{c.icon}</span>
-                    <span className="leading-tight text-center">{c.key}</span>
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      padding: "8px 4px", borderRadius: 6, fontSize: 9, fontWeight: 500,
+                      border: `1px solid ${category === c.key ? "#2761d8" : FG.cardBorder}`,
+                      background: category === c.key ? "rgba(39,97,216,0.08)" : FG.cardBg,
+                      color: category === c.key ? "#2761d8" : FG.navText,
+                      cursor: "pointer",
+                    }}>
+                    <span style={{ fontSize: 14 }}>{c.icon}</span>
+                    <span style={{ lineHeight: 1.2, textAlign: "center" }}>{c.key}</span>
                   </button>
                 ))}
               </div>
@@ -609,40 +711,64 @@ function TransactionFormDialog({
           </div>
 
           {/* Date */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">{t("date")}</label>
+          <div>
+            <label style={{ color: FG.textSecondary, fontSize: 11, fontWeight: 500, display: "block", marginBottom: 6 }}>
+              {t("date")}
+            </label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full border border-input rounded-lg px-3 py-2.5 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+              style={{
+                width: "100%", border: `1px solid ${FG.cardBorder}`, borderRadius: 6,
+                padding: "9px 12px", fontSize: 12, color: FG.txDescText,
+                outline: "none", boxSizing: "border-box",
+              }} />
           </div>
 
           {/* Recurring */}
-          <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border">
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "10px 12px", background: FG.searchBg, borderRadius: 6, border: `1px solid ${FG.cardBorder}`,
+          }}>
             <div>
-              <p className="text-sm font-medium text-foreground">{t("recurring")}</p>
-              <p className="text-xs text-muted-foreground">{t("repeatMonthly")}</p>
+              <p style={{ color: FG.txDescText, fontSize: 12, fontWeight: 500 }}>{t("recurring")}</p>
+              <p style={{ color: FG.labelMuted, fontSize: 10, marginTop: 2 }}>{t("repeatMonthly")}</p>
             </div>
-            <button type="button" onClick={() => setRecurring(v => !v)}
-              className={`w-11 h-6 rounded-full transition-colors relative ${recurring ? "bg-primary" : "bg-muted-foreground/30"}`}>
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${recurring ? "translate-x-5" : "translate-x-0.5"}`} />
+            <button onClick={() => setRecurring(v => !v)}
+              style={{
+                width: 42, height: 24, borderRadius: 12, transition: "background 0.15s",
+                background: recurring ? FG.analyzeBg : FG.cardBorder,
+                position: "relative", flexShrink: 0, border: "none",
+              }}>
+              <span style={{
+                position: "absolute", top: 2, width: 20, height: 20, borderRadius: 10,
+                background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                transition: "transform 0.15s",
+                transform: recurring ? "translateX(20px)" : "translateX(2px)",
+              }} />
             </button>
           </div>
           {recurring && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">{t("dayOfMonth")}</label>
+            <div>
+              <label style={{ color: FG.textSecondary, fontSize: 11, fontWeight: 500, display: "block", marginBottom: 6 }}>
+                {t("dayOfMonth")}
+              </label>
               <input type="number" min={1} max={31} value={recDay} onChange={e => setRecDay(Number(e.target.value))}
-                className="w-full border border-input rounded-lg px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+                style={{
+                  width: "100%", border: `1px solid ${FG.cardBorder}`, borderRadius: 6,
+                  padding: "9px 12px", fontSize: 12, color: FG.txDescText, outline: "none", boxSizing: "border-box",
+                }} />
             </div>
           )}
 
           {/* Submit */}
           <button onClick={handleSave} disabled={saving || !amount || !title.trim()}
-            className={`w-full h-11 rounded-xl text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 ${
-              type === "credit" ? "bg-emerald-500 hover:bg-emerald-600" : "bg-red-500 hover:bg-red-600"
-            }`}>
-            {saving
-              ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t("saving")}</span>
-              : editTx ? t("updateEntry") : type === "credit" ? t("addCashIn") : t("addCashOut")
-            }
+            style={{
+              width: "100%", height: 42, borderRadius: 8, border: "none",
+              background: isCredit ? FG.amountGreen : FG.amountRed,
+              color: "#fff", fontSize: 13, fontWeight: 600,
+              opacity: (saving || !amount || !title.trim()) ? 0.5 : 1,
+              cursor: (saving || !amount || !title.trim()) ? "not-allowed" : "pointer",
+            }}>
+            {saving ? t("saving") : editTx ? t("updateEntry") : isCredit ? t("addCashIn") : t("addCashOut")}
           </button>
         </div>
       </DialogContent>
@@ -650,81 +776,173 @@ function TransactionFormDialog({
   );
 }
 
-// ─── Settings Sheet ───────────────────────────────────────────
+// ─── Left Sidebar Sheet ───────────────────────────────────────
+// Matches Figma sidebar: logo, Book Keeping > Dashboard/Reports,
+// AI Features > AI/Smart Insights, Others > Settings/Help, Language, User
 
-function SettingsSheet({
-  open, onClose, currency, onCurrencyChange, lang, onLangChange, t,
-}: {
+function SidebarSheet({ open, onClose, currency, onCurrencyChange, lang, onLangChange, t }: {
   open: boolean; onClose: () => void;
   currency: Currency; onCurrencyChange: (code: string) => void;
   lang: FinanceLang; onLangChange: (l: FinanceLang) => void;
   t: ReturnType<typeof getT>;
 }) {
+  const NavItem = ({ label, icon, active = false }: { label: string; icon: React.ReactNode; active?: boolean }) => (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+      borderRadius: 4, background: active ? FG.navActiveBg : "transparent",
+      cursor: "pointer",
+    }}>
+      <span style={{ color: active ? FG.navTextActive : FG.navText, flexShrink: 0 }}>{icon}</span>
+      <span style={{ color: active ? FG.navTextActive : FG.navText, fontSize: 10, fontWeight: 400 }}>{label}</span>
+    </div>
+  );
+
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent side="left" className="w-[280px] p-0">
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="p-5 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+      <SheetContent side="left" className="p-0 w-[220px]" style={{ background: FG.sidebarBg }}>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "Inter, sans-serif" }}>
+
+          {/* Logo — matches Figma: book icon + CashBook text */}
+          <div style={{ padding: "14px 16px 12px", borderBottom: `5px solid ${FG.navActiveBg}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 27, height: 28, flexShrink: 0 }}>
+                <svg viewBox="0 0 27 28" fill="none" width="27" height="28">
+                  <rect width="27" height="28" rx="4" fill="#2761d8"/>
+                  <path d="M7 8h13M7 12h9M7 16h11M7 20h7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
                 </svg>
               </div>
-              <div>
-                <p className="text-base font-bold text-foreground">{t("finance")}</p>
-                <p className="text-xs text-muted-foreground">{t("bookKeeping")}</p>
-              </div>
+              <span style={{ color: FG.textSecondary, fontSize: 13, fontWeight: 600 }}>
+                {t("finance")}
+              </span>
             </div>
           </div>
 
-          {/* Settings */}
-          <div className="flex-1 p-5 space-y-6 overflow-y-auto">
+          {/* Nav sections */}
+          <div style={{ flex: 1, padding: "12px 8px", overflowY: "auto" }}>
+
+            {/* Book Keeping */}
+            <p style={{ color: FG.sectionLabel, fontSize: 9, fontWeight: 600, padding: "0 8px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {t("bookKeeping")}
+            </p>
+            <NavItem active label="Dashboard" icon={
+              <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg>
+            } />
+            <NavItem label="Reports" icon={
+              <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 12V5l4-4 4 4v7H8V9H6v3H2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+            } />
+
+            <div style={{ height: 1, background: FG.sidebarDivider, margin: "10px 0" }} />
+
+            {/* AI Features */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 6px" }}>
+              <p style={{ color: FG.sectionLabel, fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                AI Features
+              </p>
+              <span style={{
+                background: "#dde9f9", color: "#7399de", fontSize: 7, fontWeight: 600,
+                padding: "2px 6px", borderRadius: 8,
+              }}>New</span>
+            </div>
+            <NavItem label="AI Features" icon={
+              <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1L8.5 5.5H13L9.5 8L11 12.5L7 10L3 12.5L4.5 8L1 5.5H5.5L7 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
+            } />
+            <NavItem label="Smart Insights" icon={
+              <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 2a5 5 0 100 10A5 5 0 007 2zM7 5v3M7 9.5v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+            } />
+
+            <div style={{ height: 1, background: FG.sidebarDivider, margin: "10px 0" }} />
+
+            {/* Others */}
+            <p style={{ color: FG.sectionLabel, fontSize: 9, fontWeight: 600, padding: "0 8px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {t("settings")}
+            </p>
+            <NavItem label="Settings" icon={
+              <svg width="10" height="11" viewBox="0 0 12 13" fill="none"><path d="M6 8a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" strokeWidth="1.1"/><path d="M9.5 6h1M1.5 6h1M6 1.5v1M6 9.5v1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>
+            } />
+            <NavItem label="Help & Support" icon={
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.1"/><path d="M5.5 5.5a1.5 1.5 0 113 0c0 1-1.5 1.5-1.5 2.5M7 10v.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>
+            } />
+
+            <div style={{ height: 1, background: FG.sidebarDivider, margin: "10px 0" }} />
+
+            {/* Language */}
+            <div style={{ padding: "0 8px" }}>
+              <p style={{ color: FG.sectionLabel, fontSize: 9, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke={FG.sectionLabel} strokeWidth="1.1"/><path d="M7 1.5C5.5 3.5 5.5 10.5 7 12.5M7 1.5C8.5 3.5 8.5 10.5 7 12.5M1.5 7h11" stroke={FG.sectionLabel} strokeWidth="1.1"/></svg>
+                {t("language")}
+              </p>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: FG.cardBg, border: `1px solid ${FG.cardBorder}`,
+                borderRadius: 7, padding: "6px 10px",
+              }}>
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke={FG.navText} strokeWidth="1"/><path d="M6 1C4.5 3 4.5 9 6 11M6 1C7.5 3 7.5 9 6 11M1 6h10" stroke={FG.navText} strokeWidth="1"/></svg>
+                <div style={{ flex: 1, display: "flex", gap: 4 }}>
+                  {(["en", "si"] as FinanceLang[]).map(l => (
+                    <button key={l} onClick={() => onLangChange(l)}
+                      style={{
+                        flex: 1, padding: "3px 0", borderRadius: 4, fontSize: 9, fontWeight: 600,
+                        border: `1px solid ${lang === l ? "#2761d8" : FG.cardBorder}`,
+                        background: lang === l ? "rgba(39,97,216,0.08)" : "transparent",
+                        color: lang === l ? "#2761d8" : FG.navText,
+                        cursor: "pointer",
+                      }}>
+                      {l === "en" ? "EN" : "සි"}
+                    </button>
+                  ))}
+                </div>
+                <svg width="8" height="5" viewBox="0 0 10 6" fill="none">
+                  <path d="M1 1l4 4 4-4" stroke={FG.navText} strokeWidth="1.2" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: FG.sidebarDivider, margin: "10px 0" }} />
+
             {/* Currency */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("currency")}</p>
+            <div style={{ padding: "0 8px" }}>
+              <p style={{ color: FG.sectionLabel, fontSize: 9, fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {t("currency")}
+              </p>
               <Select value={currency.code} onValueChange={onCurrencyChange}>
-                <SelectTrigger className="w-full h-10">
+                <SelectTrigger className="h-8 text-xs w-full">
                   <SelectValue>
-                    <span className="flex items-center gap-2">
-                      <span className="font-bold text-base">{currency.symbol}</span>
-                      <span className="text-muted-foreground">{currency.code}</span>
-                      <span className="text-xs text-muted-foreground">— {currency.name}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontWeight: 700 }}>{currency.symbol}</span>
+                      <span style={{ color: FG.navText }}>{currency.code}</span>
                     </span>
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
+                <SelectContent className="max-h-[250px]">
                   {CURRENCIES.map(c => (
-                    <SelectItem key={c.code} value={c.code}>
-                      <span className="flex items-center gap-2">
+                    <SelectItem key={c.code} value={c.code} className="text-xs">
+                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span>{c.flag}</span>
-                        <span className="font-medium w-6">{c.symbol}</span>
+                        <span style={{ fontWeight: 600, width: 20 }}>{c.symbol}</span>
                         <span>{c.code}</span>
-                        <span className="text-muted-foreground text-xs">— {c.name}</span>
+                        <span style={{ color: FG.navText }}>— {c.name}</span>
                       </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            {/* Language */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("language")}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {(["en", "si"] as FinanceLang[]).map(l => (
-                  <button key={l} onClick={() => onLangChange(l)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                      lang === l
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-accent"
-                    }`}>
-                    <span>{l === "en" ? "🇬🇧" : "🇱🇰"}</span>
-                    <span>{l === "en" ? t("english") : t("sinhala")}</span>
-                  </button>
-                ))}
-              </div>
+          {/* User — Figma: bg #f2f3f5, initials circle, email truncated */}
+          <div style={{ borderTop: `1px solid ${FG.sidebarDivider}`, padding: "10px 12px" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, background: FG.userBg,
+              borderRadius: 6, padding: "8px 10px",
+            }}>
+              <div style={{
+                width: 24, height: 24, borderRadius: 12, background: FG.userInitialsBg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 8, fontWeight: 600, color: "#fff", flexShrink: 0,
+              }}>NU</div>
+              <span style={{ color: FG.userText, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                nuwansarat@gmail.com
+              </span>
             </div>
           </div>
         </div>
@@ -736,7 +954,6 @@ function SettingsSheet({
 // ─── Main Page ────────────────────────────────────────────────
 
 export default function FinancePage() {
-  // Currency + Language (persisted)
   const [currency, setCurrencyState] = useState<Currency>(getSavedCurrency);
   const [lang, setLangState]         = useState<FinanceLang>(getSavedLang);
   const t = useMemo(() => getT(lang), [lang]);
@@ -747,21 +964,18 @@ export default function FinancePage() {
   };
   const changeLang = (l: FinanceLang) => { setLangState(l); saveLang(l); };
 
-  // Data
   const [month,     setMonth]     = useState(currentMonth);
   const [monthly,   setMonthly]   = useState<Transaction[]>([]);
   const [recurring, setRecurring] = useState<Transaction[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [missingTable, setMissingTable] = useState(false);
 
-  // UI state
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [formOpen,     setFormOpen]     = useState(false);
-  const [editTx,       setEditTx]       = useState<Transaction | null>(null);
-  const [defaultType,  setDefaultType]  = useState<TxType>("credit");
-  const [deleteId,     setDeleteId]     = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [formOpen,    setFormOpen]    = useState(false);
+  const [editTx,      setEditTx]      = useState<Transaction | null>(null);
+  const [defType,     setDefType]     = useState<TxType>("credit");
+  const [deleteId,    setDeleteId]    = useState<string | null>(null);
 
-  // Filters
   const [search,     setSearch]     = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "credit" | "debit">("all");
   const [catFilter,  setCatFilter]  = useState("all");
@@ -781,47 +995,32 @@ export default function FinancePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Filtered + sorted list
   const filtered = useMemo(() => {
     let list = [...monthly];
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(tx =>
-        tx.title.toLowerCase().includes(q) ||
-        String(tx.amount).includes(q) ||
-        tx.category?.toLowerCase().includes(q)
-      );
+      list = list.filter(tx => tx.title.toLowerCase().includes(q) || String(tx.amount).includes(q) || tx.category?.toLowerCase().includes(q));
     }
     if (typeFilter !== "all") list = list.filter(tx => tx.type === typeFilter);
     if (catFilter  !== "all") list = list.filter(tx => tx.category === catFilter);
-    if (sortBy === "amount") list.sort((a, b) => Number(b.amount) - Number(a.amount));
-    else                      list.sort((a, b) => b.date.localeCompare(a.date));
+    if (sortBy === "amount")   list.sort((a, b) => Number(b.amount) - Number(a.amount));
+    else                       list.sort((a, b) => b.date.localeCompare(a.date));
     return list;
   }, [monthly, search, typeFilter, catFilter, sortBy]);
 
   const categories = useMemo(() => {
-    const cats = new Set(monthly.map(t => t.category).filter(Boolean));
+    const cats = new Set(monthly.map(tx => tx.category).filter(Boolean));
     return Array.from(cats).sort() as string[];
   }, [monthly]);
 
-  const openAdd = (type: TxType) => {
-    setEditTx(null); setDefaultType(type); setFormOpen(true);
-  };
-  const openEdit = (tx: Transaction) => {
-    setEditTx(tx); setDefaultType(tx.type); setFormOpen(true);
-  };
+  const openAdd = (type: TxType) => { setEditTx(null); setDefType(type); setFormOpen(true); };
+  const openEdit = (tx: Transaction) => { setEditTx(tx); setDefType(tx.type); setFormOpen(true); };
 
   const handleSaved = (tx: Transaction) => {
     if (tx.recurring) {
-      setRecurring(prev => {
-        const idx = prev.findIndex(x => x.id === tx.id);
-        return idx >= 0 ? prev.map(x => x.id === tx.id ? tx : x) : [...prev, tx];
-      });
+      setRecurring(prev => { const i = prev.findIndex(x => x.id === tx.id); return i >= 0 ? prev.map(x => x.id === tx.id ? tx : x) : [...prev, tx]; });
     } else {
-      setMonthly(prev => {
-        const idx = prev.findIndex(x => x.id === tx.id);
-        return idx >= 0 ? prev.map(x => x.id === tx.id ? tx : x) : [tx, ...prev];
-      });
+      setMonthly(prev => { const i = prev.findIndex(x => x.id === tx.id); return i >= 0 ? prev.map(x => x.id === tx.id ? tx : x) : [tx, ...prev]; });
     }
   };
 
@@ -834,76 +1033,119 @@ export default function FinancePage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background overflow-hidden">
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: FG.pageBg, overflow: "hidden", fontFamily: "Inter, sans-serif" }}>
 
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-card border-b border-border shadow-sm px-4 pt-safe-top">
-        <div className="flex items-center justify-between h-14">
-          {/* Hamburger + Logo */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              </div>
-              <span className="font-bold text-foreground">{t("finance")}</span>
-            </div>
+      {/* ── Header — matches Figma top bar exactly ─────────────── */}
+      <div style={{
+        background: FG.headerBg,
+        borderBottom: `1px solid ${FG.headerBorder}`,
+        padding: "0 16px",
+        flexShrink: 0,
+        zIndex: 20,
+      }}>
+        {/* Row 1: logo + currency + action buttons */}
+        <div style={{ display: "flex", alignItems: "center", height: 52, gap: 8 }}>
+          {/* Hamburger */}
+          <button onClick={() => setSidebarOpen(true)}
+            style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: 6, border: "none", background: "transparent", cursor: "pointer" }}>
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+              <path d="M1 1h14M1 6h14M1 11h14" stroke={FG.textSecondary} strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+
+          {/* Logo text */}
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect width="24" height="24" rx="4" fill="#2761d8"/>
+              <path d="M5 7h14M5 11h10M5 15h12M5 19h8" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+            </svg>
+            <span style={{ color: FG.textSecondary, fontSize: 13, fontWeight: 700 }}>{t("finance")}</span>
           </div>
 
-          {/* Currency badge */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-1.5 h-9 px-3 bg-muted border border-border rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
-          >
-            <span className="font-bold text-base">{currency.symbol}</span>
-            <span className="text-muted-foreground">{currency.code}</span>
-            <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <div style={{ flex: 1 }} />
+
+          {/* Currency selector — Figma: bg #fdfcfd, border #d3d4db, text #a9adb6 */}
+          <button onClick={() => setSidebarOpen(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: FG.currencyBg, border: `1px solid ${FG.currencyBorder}`,
+              borderRadius: 8, padding: "5px 10px", cursor: "pointer",
+            }}>
+            <span style={{ color: FG.currencyText, fontSize: 12 }}>{currency.symbol}</span>
+            <span style={{ color: FG.currencyText, fontSize: 11 }}>{currency.code}</span>
+            <svg width="8" height="5" viewBox="0 0 10 6" fill="none">
+              <path d="M1 1l4 4 4-4" stroke={FG.currencyText} strokeWidth="1.3" strokeLinecap="round"/>
             </svg>
+          </button>
+
+          {/* Cash In — Figma: green button */}
+          <button onClick={() => openAdd("credit")}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: FG.amountGreen, border: `1px solid ${FG.amountGreen}`,
+              borderRadius: 8, padding: "6px 12px", cursor: "pointer",
+            }}>
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+              <path d="M5 1v8M1 5h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>{t("cashIn")}</span>
+          </button>
+
+          {/* Cash Out — Figma: red button */}
+          <button onClick={() => openAdd("debit")}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: FG.amountRed, border: `1px solid ${FG.amountRed}`,
+              borderRadius: 8, padding: "6px 12px", cursor: "pointer",
+            }}>
+            <svg width="9" height="2" viewBox="0 0 10 2" fill="none">
+              <path d="M1 1h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>{t("cashOut")}</span>
           </button>
         </div>
 
-        {/* Month selector */}
-        <div className="flex items-center justify-between py-2.5">
-          <button onClick={() => setMonth(prevMonth(month))}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setMonth(currentMonth())}
-            className="flex items-center gap-2 px-4 h-9 rounded-lg bg-card border border-border font-semibold text-sm text-foreground hover:bg-accent transition-colors"
-          >
-            {monthLabel(month, lang)}
-          </button>
-          <button onClick={() => setMonth(nextMonth(month))}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+        {/* Row 2: Month navigator — Figma: white bg, border, centered text */}
+        <div style={{ display: "flex", alignItems: "center", paddingBottom: 10 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 0,
+            background: FG.monthBg, border: `1px solid ${FG.monthBorder}`,
+            borderRadius: 4, overflow: "hidden",
+          }}>
+            <button onClick={() => setMonth(prevMonth(month))}
+              style={{ width: 30, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+                border: "none", background: "transparent", cursor: "pointer" }}>
+              <svg width="5" height="9" viewBox="0 0 6 10" fill="none">
+                <path d="M5 1L1 5l4 4" stroke={FG.monthText} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <button onClick={() => setMonth(currentMonth())}
+              style={{ minWidth: 110, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+                border: "none", background: "transparent", cursor: "pointer",
+                color: FG.monthText, fontSize: 12, fontWeight: 600 }}>
+              {monthLabel(month)}
+            </button>
+            <button onClick={() => setMonth(nextMonth(month))}
+              style={{ width: 30, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+                border: "none", background: "transparent", cursor: "pointer" }}>
+              <svg width="5" height="9" viewBox="0 0 6 10" fill="none">
+                <path d="M1 1l4 4-4 4" stroke={FG.monthText} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
-      </header>
+      </div>
 
       {/* ── Scrollable Body ─────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-28">
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px" }}>
 
-        {/* Missing table banner */}
+        {/* Setup banner */}
         {missingTable && (
-          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl">
-            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">⚙️ {t("setupRequired")}</p>
-            <p className="text-xs text-amber-600 dark:text-amber-500">
-              Run <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">supabase/migrations/003_finance_tracker.sql</code> in Supabase SQL Editor.
+          <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "10px 14px", marginBottom: 12 }}>
+            <p style={{ color: "#92400e", fontSize: 11, fontWeight: 700, marginBottom: 3 }}>⚙️ Setup Required</p>
+            <p style={{ color: "#b45309", fontSize: 10 }}>
+              Run <code style={{ background: "#fef3c7", padding: "1px 4px", borderRadius: 3 }}>supabase/migrations/003_finance_tracker.sql</code> in Supabase SQL Editor.
             </p>
           </div>
         )}
@@ -911,101 +1153,133 @@ export default function FinancePage() {
         {/* Balance Cards */}
         <BalanceCards monthly={monthly} recurring={recurring} month={month} currency={currency} t={t} />
 
+        {/* Separator */}
+        <div style={{ height: 1, background: FG.cardBorder, margin: "12px 0" }} />
+
         {/* AI Insights */}
-        <AIInsights transactions={monthly} recurring={recurring} month={month} currency={currency} t={t} />
+        <AIInsightsCard monthly={monthly} recurring={recurring} month={month} currency={currency} t={t} />
 
         {/* Search + Filter */}
-        <SearchFilter
-          search={search} onSearch={setSearch}
-          typeFilter={typeFilter} onTypeFilter={setTypeFilter}
-          categoryFilter={catFilter} onCategoryFilter={setCatFilter}
-          sortBy={sortBy} onSort={setSortBy}
-          categories={categories} t={t}
-        />
+        <div style={{ marginTop: 12 }}>
+          <SearchFilterBar
+            search={search} onSearch={setSearch}
+            typeFilter={typeFilter} onTypeFilter={setTypeFilter}
+            catFilter={catFilter} onCatFilter={setCatFilter}
+            sortBy={sortBy} onSort={setSortBy}
+            categories={categories} t={t}
+          />
+        </div>
 
         {/* Entries */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-foreground">{t("entries")}</h2>
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ color: FG.entriesLabel, fontSize: 12, fontWeight: 700 }}>{t("entries")}</span>
             {filtered.length > 0 && (
-              <span className="text-xs text-muted-foreground">{filtered.length} {t("transactions")}</span>
+              <span style={{ color: FG.labelMuted, fontSize: 10 }}>{filtered.length} {t("transactions")}</span>
             )}
           </div>
 
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-16 bg-card border border-border rounded-lg animate-pulse" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[1,2,3].map(i => (
+                <div key={i} style={{ height: 60, background: FG.cardBg, border: `1px solid ${FG.cardBorder}`, borderRadius: 6, animation: "pulse 1.5s infinite" }} />
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center bg-card border border-border rounded-xl">
-              <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center text-3xl mb-3">📋</div>
-              <p className="text-sm font-semibold text-foreground mb-1">{t("noEntriesYet")}</p>
-              <p className="text-xs text-muted-foreground px-8">{t("startAdding")}</p>
+            // Empty state — matches Figma exactly
+            <div style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              padding: "48px 24px", gap: 8,
+            }}>
+              {/* Document icon — matches Figma empty state icon */}
+              <div style={{
+                width: 48, height: 48, borderRadius: 8,
+                background: "#eef0f4",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="#9aa0ac" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M14 2v6h6M8 13h8M8 17h5" stroke="#9aa0ac" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <p style={{ color: FG.emptyTitle, fontSize: 12, fontWeight: 500 }}>{t("noEntriesYet")}</p>
+              <p style={{ color: FG.emptySubtitle, fontSize: 10, textAlign: "center", maxWidth: 200 }}>{t("startAdding")}</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {filtered.map(tx => (
-                <TransactionItem
-                  key={tx.id} tx={tx}
-                  onEdit={openEdit} onDelete={setDeleteId}
-                  currency={currency} lang={lang} t={t}
-                />
+                <TxRow key={tx.id} tx={tx} onEdit={openEdit} onDelete={setDeleteId} currency={currency} />
               ))}
             </div>
           )}
         </div>
-      </main>
-
-      {/* ── Fixed Bottom: Cash In / Cash Out ────────────────────── */}
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+60px)] left-0 right-0 z-20 bg-card/80 backdrop-blur-md border-t border-border px-4 py-3">
-        <div className="flex gap-3">
-          <button onClick={() => openAdd("credit")}
-            className="flex-1 flex items-center justify-center gap-2 h-11 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl shadow-sm active:scale-[0.98] transition-all">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-            {t("cashIn")}
-          </button>
-          <button onClick={() => openAdd("debit")}
-            className="flex-1 flex items-center justify-center gap-2 h-11 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl shadow-sm active:scale-[0.98] transition-all">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
-            </svg>
-            {t("cashOut")}
-          </button>
-        </div>
       </div>
 
-      {/* ── Dialogs + Sheets ────────────────────────────────────── */}
-      <SettingsSheet
-        open={settingsOpen} onClose={() => setSettingsOpen(false)}
+      {/* ── Fixed bottom: Cash In | Cash Out (mobile) ─────────── */}
+      <div style={{
+        position: "fixed",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 60px)",
+        left: 0, right: 0, zIndex: 20,
+        background: "rgba(254,254,254,0.92)",
+        backdropFilter: "blur(12px)",
+        borderTop: `1px solid ${FG.headerBorder}`,
+        padding: "10px 16px",
+        display: "flex", gap: 12,
+      }}>
+        <button onClick={() => openAdd("credit")} style={{
+          flex: 1, height: 40, borderRadius: 8, border: "none",
+          background: FG.amountGreen, color: "#fff",
+          fontSize: 12, fontWeight: 600, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M5 1v8M1 5h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          {t("cashIn")}
+        </button>
+        <button onClick={() => openAdd("debit")} style={{
+          flex: 1, height: 40, borderRadius: 8, border: "none",
+          background: FG.amountRed, color: "#fff",
+          fontSize: 12, fontWeight: 600, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
+            <path d="M1 1h8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          {t("cashOut")}
+        </button>
+      </div>
+
+      {/* ── Dialogs ─────────────────────────────────────────────── */}
+      <SidebarSheet
+        open={sidebarOpen} onClose={() => setSidebarOpen(false)}
         currency={currency} onCurrencyChange={changeCurrency}
         lang={lang} onLangChange={changeLang} t={t}
       />
 
-      <TransactionFormDialog
+      <TxFormDialog
         open={formOpen} onOpenChange={setFormOpen}
-        editTx={editTx} defaultType={defaultType}
+        editTx={editTx} defaultType={defType}
         onSaved={handleSaved} currency={currency} t={t}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={open => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("deleteEntry")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("deleteConfirm")}</AlertDialogDescription>
+            <AlertDialogTitle style={{ color: FG.textPrimary }}>{t("deleteEntry")}</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: FG.labelMuted }}>{t("deleteConfirm")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete}
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              style={{ background: FG.amountRed, color: "#fff" }}>
               {t("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
     </div>
   );
 }
