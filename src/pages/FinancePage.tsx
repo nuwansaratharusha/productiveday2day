@@ -5,6 +5,7 @@
 // =============================================================
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { Download, FileText, FileSpreadsheet } from "lucide-react";
 import {
   getTransactions, createTransaction, updateTransaction, deleteTransaction,
   CATEGORIES, getCategoryMeta,
@@ -97,6 +98,182 @@ function fmtDateLong(d: string) {
 function monthLabel(m: string) {
   const [y, mo] = m.split("-").map(Number);
   return new Date(y, mo - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+// ─── Report Export Helpers ────────────────────────────────────
+
+function buildAllTxForMonth(monthly: Transaction[], recurring: Transaction[], month: string): Transaction[] {
+  return [
+    ...monthly,
+    ...recurring.map(tx => ({ ...tx, date: recurringDateForMonth(tx, month) })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function downloadCSV(monthly: Transaction[], recurring: Transaction[], month: string, currency: { symbol: string; code: string }) {
+  const all = buildAllTxForMonth(monthly, recurring, month);
+  const totalIn  = all.filter(x => x.type === "credit").reduce((s, x) => s + Number(x.amount), 0);
+  const totalOut = all.filter(x => x.type === "debit" ).reduce((s, x) => s + Number(x.amount), 0);
+  const net      = totalIn - totalOut;
+
+  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+
+  const rows: string[] = [
+    `"ProductiveDay Finance Report — ${monthLabel(month)}"`,
+    `"Currency: ${currency.code} (${currency.symbol})"`,
+    `"Generated: ${new Date().toLocaleDateString("en-US", { dateStyle: "long" })}"`,
+    "",
+    [esc("Date"), esc("Type"), esc("Description"), esc("Category"), esc(`Amount (${currency.code})`), esc("Recurring")].join(","),
+    ...all.map(tx => [
+      esc(tx.date),
+      esc(tx.type === "credit" ? "Cash In" : "Cash Out"),
+      esc(tx.title),
+      esc(tx.category || "Uncategorised"),
+      esc(Number(tx.amount).toFixed(2)),
+      esc(tx.recurring ? "Yes" : "No"),
+    ].join(",")),
+    "",
+    `"── Summary ──"`,
+    [esc("Cash In"),    esc(totalIn.toFixed(2))].join(","),
+    [esc("Cash Out"),   esc(totalOut.toFixed(2))].join(","),
+    [esc("Net Balance"),esc(net.toFixed(2))].join(","),
+  ];
+
+  const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `finance-report-${month}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function printHTMLReport(monthly: Transaction[], recurring: Transaction[], month: string, currency: { symbol: string; code: string; name: string }) {
+  const all      = buildAllTxForMonth(monthly, recurring, month);
+  const totalIn  = all.filter(x => x.type === "credit").reduce((s, x) => s + Number(x.amount), 0);
+  const totalOut = all.filter(x => x.type === "debit" ).reduce((s, x) => s + Number(x.amount), 0);
+  const net      = totalIn - totalOut;
+
+  // Category breakdown
+  const catMap: Record<string, { in: number; out: number; count: number }> = {};
+  all.forEach(tx => {
+    const c = tx.category || "Uncategorised";
+    if (!catMap[c]) catMap[c] = { in: 0, out: 0, count: 0 };
+    catMap[c].count++;
+    if (tx.type === "credit") catMap[c].in  += Number(tx.amount);
+    else                      catMap[c].out += Number(tx.amount);
+  });
+  const catRows = Object.entries(catMap).sort((a, b) => (b[1].out + b[1].in) - (a[1].out + a[1].in));
+
+  const fmt = (n: number) => `${currency.symbol}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const colour = (n: number) => n >= 0 ? "#16a34a" : "#dc2626";
+
+  const txRows = all.map(tx => `
+    <tr>
+      <td>${tx.date}</td>
+      <td><span class="${tx.type === "credit" ? "badge-in" : "badge-out"}">${tx.type === "credit" ? "Cash In" : "Cash Out"}</span></td>
+      <td class="desc">${tx.title}</td>
+      <td>${tx.category || "Uncategorised"}</td>
+      <td class="amount" style="color:${tx.type === "credit" ? "#16a34a" : "#dc2626"}">${tx.type === "credit" ? "+" : "−"}${fmt(Number(tx.amount))}</td>
+    </tr>`).join("");
+
+  const catTableRows = catRows.map(([cat, v]) => `
+    <tr>
+      <td>${cat}</td>
+      <td>${v.count}</td>
+      <td style="color:#16a34a">${v.in > 0 ? "+" + fmt(v.in) : "—"}</td>
+      <td style="color:#dc2626">${v.out > 0 ? "−" + fmt(v.out) : "—"}</td>
+      <td style="color:${colour(v.in - v.out)};font-weight:600">${fmt(v.in - v.out)}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Finance Report — ${monthLabel(month)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Inter", "Segoe UI", sans-serif; color: #1e1e2e; background: #fff; padding: 32px; font-size: 13px; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 2px solid #e2e8f0; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 36px; height: 36px; background: #2761d8; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .logo-text { font-size: 18px; font-weight: 700; color: #1e1e2e; }
+  .report-meta { text-align: right; color: #64748b; font-size: 11px; line-height: 1.6; }
+  .report-meta strong { color: #1e1e2e; font-size: 14px; font-weight: 700; display: block; }
+  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; }
+  .card-label { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .card-value { font-size: 22px; font-weight: 700; }
+  .section-title { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+  th { background: #f8fafc; text-align: left; padding: 8px 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+  .desc { max-width: 220px; color: #334155; }
+  .amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .badge-in  { display: inline-block; background: #dcfce7; color: #16a34a; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+  .badge-out { display: inline-block; background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+  .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
+  @media print { body { padding: 16px; } @page { margin: 15mm; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M5 7h14M5 11h10M5 15h12M5 19h8" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="logo-text">ProductiveDay Finance</span>
+  </div>
+  <div class="report-meta">
+    <strong>${monthLabel(month)}</strong>
+    Currency: ${currency.name} (${currency.code})<br>
+    Generated: ${new Date().toLocaleDateString("en-US", { dateStyle: "long" })}
+  </div>
+</div>
+
+<div class="summary">
+  <div class="card">
+    <div class="card-label">Net Balance</div>
+    <div class="card-value" style="color:${colour(net)}">${fmt(Math.abs(net))}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Total Cash In</div>
+    <div class="card-value" style="color:#16a34a">${fmt(totalIn)}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Total Cash Out</div>
+    <div class="card-value" style="color:#dc2626">${fmt(totalOut)}</div>
+  </div>
+</div>
+
+${catRows.length > 0 ? `
+<div class="section-title">Category Breakdown</div>
+<table>
+  <thead><tr><th>Category</th><th>Transactions</th><th>Income</th><th>Expense</th><th>Net</th></tr></thead>
+  <tbody>${catTableRows}</tbody>
+</table>` : ""}
+
+<div class="section-title">Transactions (${all.length})</div>
+<table>
+  <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead>
+  <tbody>${txRows}</tbody>
+</table>
+
+<div class="footer">ProductiveDay · Finance Report · ${monthLabel(month)}</div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => win.print(), 400);
+  }
 }
 
 function prevMonth(m: string) {
@@ -1102,6 +1279,38 @@ export default function FinancePage() {
             </svg>
             <span style={{ color: FG.textSecondary, fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t("finance")}</span>
           </div>
+
+          {/* Download report button */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Download report"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 36, height: 36,
+                  background: FG.currencyBg, border: `1px solid ${FG.currencyBorder}`,
+                  borderRadius: 8, cursor: "pointer", flexShrink: 0,
+                }}>
+                <Download size={15} color={FG.textSecondary} strokeWidth={2} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" style={{ minWidth: 200 }}>
+              <DropdownMenuItem
+                onClick={() => downloadCSV(monthly, recurring, month, currency)}
+                style={{ cursor: "pointer", gap: 10 }}
+              >
+                <FileSpreadsheet size={15} />
+                <span>Download CSV</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => printHTMLReport(monthly, recurring, month, currency)}
+                style={{ cursor: "pointer", gap: 10 }}
+              >
+                <FileText size={15} />
+                <span>Print / Save as PDF</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Currency selector — compact on mobile */}
           <button onClick={() => setSidebarOpen(true)}
