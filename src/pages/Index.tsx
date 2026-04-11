@@ -137,16 +137,52 @@ export default function Index() {
   const handleSave = (data: Omit<TimeBlockData, "id"> & { id?: string }) => {
     let newBlocks: TimeBlockData[];
     if (data.id) {
+      // Editing existing block — preserve the user's manually set time exactly
       newBlocks = blocks.map((b) => b.id === data.id ? ({ ...b, ...data } as TimeBlockData) : b);
     } else {
+      // Adding new block — append at end, no time recalculation
       newBlocks = [...blocks, { ...data, id: `block-${Date.now()}` } as TimeBlockData];
     }
-    updateBlocks(recalculateTimes(newBlocks));
+    updateBlocks(newBlocks);
   };
 
   const handleDelete = (id: string) => {
-    updateBlocks(recalculateTimes(blocks.filter((b) => b.id !== id)));
+    // Keep times as-is after deletion (don't cascade recalculate)
+    updateBlocks(blocks.filter((b) => b.id !== id));
   };
+
+  // Compute a smart default start time for new blocks:
+  // If there are existing blocks, start right after the last one ends.
+  const newBlockDefaultStart = useMemo(() => {
+    if (blocks.length === 0) return "09:00";
+    const last = blocks[blocks.length - 1];
+    // Parse the last block's time to find its end
+    const parts = last.time.split(/[–—-]/);
+    if (parts.length < 2) {
+      // Fallback: parse start + add duration
+      const startParts = parts[0].trim().replace(/\s*(AM|PM)/i, "").split(":");
+      const hStr = startParts[0] || "0";
+      const mStr = startParts[1] || "0";
+      const isPM = /PM/i.test(last.time) && parseInt(hStr, 10) !== 12;
+      let h = parseInt(hStr, 10) + (isPM ? 12 : 0);
+      const m = parseInt(mStr, 10);
+      const endMins = h * 60 + m + last.dur;
+      const eh = Math.floor((endMins % 1440) / 60);
+      const em = endMins % 60;
+      return `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+    }
+    // Parse end part "10:00 AM" → 24h
+    const endRaw = parts[1].trim();
+    const endPeriodMatch = endRaw.match(/(AM|PM)/i);
+    const period = endPeriodMatch?.[0] || "AM";
+    const num = endRaw.replace(/\s*(AM|PM)/i, "").trim();
+    const [hS = "0", mS = "0"] = num.split(":");
+    let h = parseInt(hS, 10);
+    const m = parseInt(mS, 10);
+    if (/PM/i.test(period) && h !== 12) h += 12;
+    if (/AM/i.test(period) && h === 12) h = 0;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }, [blocks]);
 
   if (onboarded === false) {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
@@ -262,6 +298,7 @@ export default function Index() {
       <BlockDialog
         open={dialogOpen} onOpenChange={setDialogOpen}
         block={editingBlock} onSave={handleSave} categories={categories}
+        defaultStartTime={newBlockDefaultStart}
       />
 
       <CategoryManager

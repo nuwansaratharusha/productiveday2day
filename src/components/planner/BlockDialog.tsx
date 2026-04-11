@@ -13,27 +13,152 @@ interface BlockDialogProps {
   block: TimeBlockData | null;
   onSave: (block: Omit<TimeBlockData, "id"> & { id?: string }) => void;
   categories?: Record<string, Category>;
+  defaultStartTime?: string; // "HH:MM" 24h — used when adding a new block
 }
 
-export function BlockDialog({ open, onOpenChange, block, onSave, categories }: BlockDialogProps) {
-  const cats = categories || DEFAULT_CATEGORIES;
-  const [form, setForm] = useState({ block: "", desc: "", time: "", cat: "Personal", dur: 30 });
+// ── Time helpers ──────────────────────────────────────────────────
 
+/** "HH:MM" (24h) → total minutes */
+function t24ToMins(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+}
+
+/** total minutes → "HH:MM" (24h, clamped to 0-1439) */
+function minsToT24(mins: number): string {
+  const clamped = ((mins % 1440) + 1440) % 1440;
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** total minutes → "H:MM AM/PM" */
+function minsToAMPM(totalMins: number): string {
+  const clamped = ((totalMins % 1440) + 1440) % 1440;
+  const h24 = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  const period = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+/** Build the "H:MM–H:MM AM/PM" string stored in block.time */
+function buildTimeStr(startT24: string, endT24: string): string {
+  const startMins = t24ToMins(startT24);
+  const endMins   = t24ToMins(endT24);
+  const startStr  = minsToAMPM(startMins);
+  const endStr    = minsToAMPM(endMins);
+  const sPeriod   = startStr.slice(-2);
+  const ePeriod   = endStr.slice(-2);
+  if (sPeriod === ePeriod) {
+    return `${startStr.replace(/ (AM|PM)$/, "")}–${endStr}`;
+  }
+  return `${startStr}–${endStr}`;
+}
+
+/**
+ * Parse "9:00–10:00 AM" or "9:00 AM–10:00 AM" or "9:00-10:00 AM"
+ * (handles en-dash, em-dash, and plain hyphen) → { start: "09:00", end: "10:00" } (24h)
+ */
+function parseBlockTime(timeStr: string): { start: string; end: string } {
+  if (!timeStr) return { start: "09:00", end: "10:00" };
+
+  // Accept en-dash (–), em-dash (—), or plain hyphen-minus as separator
+  const parts = timeStr.split(/\s*[–—]\s*|\s*-\s*/);
+  if (parts.length < 2) return { start: "09:00", end: "10:00" };
+
+  const startRaw = parts[0].trim();
+  const endRaw   = parts[1].trim();
+
+  const endPeriod   = (endRaw.match(/(AM|PM)/i)   || ["", "AM"])[1];
+  const startPeriod = (startRaw.match(/(AM|PM)/i)  || ["", endPeriod])[1];
+
+  function toT24(raw: string, period: string): string {
+    const num  = raw.replace(/\s*(AM|PM)/i, "").trim();
+    const [hS = "0", mS = "0"] = num.split(":");
+    let h = parseInt(hS, 10);
+    const m = parseInt(mS, 10);
+    if (isNaN(h) || isNaN(m)) return "00:00";
+    if (/PM/i.test(period) && h !== 12) h += 12;
+    if (/AM/i.test(period) && h === 12) h = 0;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  return {
+    start: toT24(startRaw, startPeriod),
+    end:   toT24(endRaw,   endPeriod),
+  };
+}
+
+// ── Component ─────────────────────────────────────────────────────
+
+export function BlockDialog({
+  open, onOpenChange, block, onSave, categories, defaultStartTime = "09:00",
+}: BlockDialogProps) {
+  const cats = categories || DEFAULT_CATEGORIES;
+
+  const [name, setName]           = useState("");
+  const [desc, setDesc]           = useState("");
+  const [startT, setStartT]       = useState("09:00");
+  const [endT, setEndT]           = useState("10:00");
+  const [dur, setDur]             = useState(60);
+  const [cat, setCat]             = useState("Personal");
+
+  // Populate form when dialog opens
   useEffect(() => {
     if (block) {
-      setForm({ block: block.block, desc: block.desc, time: block.time, cat: block.cat, dur: block.dur });
+      const { start, end } = parseBlockTime(block.time);
+      const durCalc = Math.max(5, t24ToMins(end) - t24ToMins(start));
+      setName(block.block);
+      setDesc(block.desc || "");
+      setStartT(start);
+      setEndT(end);
+      setDur(durCalc);
+      setCat(block.cat);
     } else {
-      setForm({ block: "", desc: "", time: "", cat: "Personal", dur: 30 });
+      setName("");
+      setDesc("");
+      setStartT(defaultStartTime);
+      setEndT(minsToT24(t24ToMins(defaultStartTime) + 60));
+      setDur(60);
+      setCat("Personal");
     }
-  }, [block, open]);
+  }, [block, open, defaultStartTime]);
+
+  // ── Sync helpers ───────────────────────────────────────────────
+
+  const onStartChange = (val: string) => {
+    setStartT(val);
+    setEndT(minsToT24(t24ToMins(val) + dur));
+  };
+
+  const onEndChange = (val: string) => {
+    setEndT(val);
+    const d = Math.max(5, t24ToMins(val) - t24ToMins(startT));
+    setDur(d);
+  };
+
+  const onDurChange = (val: number) => {
+    if (isNaN(val) || val < 1) return;
+    setDur(val);
+    setEndT(minsToT24(t24ToMins(startT) + val));
+  };
 
   const handleSave = () => {
-    if (!form.block || !form.time) return;
-    onSave({ ...form, id: block?.id });
+    if (!name.trim()) return;
+    onSave({
+      id:    block?.id,
+      block: name.trim(),
+      desc:  desc.trim(),
+      time:  buildTimeStr(startT, endT),
+      dur,
+      cat,
+    });
     onOpenChange(false);
   };
 
-  const selectedCat = cats[form.cat];
+  const selectedCat = cats[cat];
+  const previewTime = buildTimeStr(startT, endT);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,15 +170,16 @@ export function BlockDialog({ open, onOpenChange, block, onSave, categories }: B
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
+
           {/* Block name */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Block Name
             </Label>
             <Input
-              value={form.block}
-              onChange={e => setForm(p => ({ ...p, block: e.target.value }))}
-              placeholder="e.g. Deep Work Session"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Read the Book"
               className="h-10 rounded-xl border-border text-sm font-medium"
             />
           </div>
@@ -64,36 +190,56 @@ export function BlockDialog({ open, onOpenChange, block, onSave, categories }: B
               <AlignLeft className="w-3 h-3" /> Description
             </Label>
             <Input
-              value={form.desc}
-              onChange={e => setForm(p => ({ ...p, desc: e.target.value }))}
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
               placeholder="What will you focus on?"
               className="h-10 rounded-xl border-border text-sm"
             />
           </div>
 
-          {/* Time + Duration */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Clock className="w-3 h-3" /> Time Range
-              </Label>
-              <Input
-                value={form.time}
-                onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
-                placeholder="9:00–10:00 AM"
-                className="h-10 rounded-xl border-border text-sm"
-              />
+          {/* Time pickers */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Clock className="w-3 h-3" /> Time
+            </Label>
+
+            {/* Start + End side by side */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">Start</p>
+                <input
+                  type="time"
+                  value={startT}
+                  onChange={e => onStartChange(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">End</p>
+                <input
+                  type="time"
+                  value={endT}
+                  onChange={e => onEndChange(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Timer className="w-3 h-3" /> Duration (min)
-              </Label>
-              <Input
+
+            {/* Duration + preview */}
+            <div className="flex items-center gap-2">
+              <Timer className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              <span className="text-[11px] text-muted-foreground">Duration</span>
+              <input
                 type="number"
-                value={form.dur}
-                onChange={e => setForm(p => ({ ...p, dur: Number(e.target.value) }))}
-                className="h-10 rounded-xl border-border text-sm"
+                min="5"
+                max="480"
+                value={dur}
+                onChange={e => onDurChange(Number(e.target.value))}
+                className="w-14 h-7 rounded-lg border border-border bg-background px-2 text-xs text-foreground text-center focus:outline-none focus:ring-1 focus:ring-primary/50"
               />
+              <span className="text-[11px] text-muted-foreground">min</span>
+              {/* Live preview */}
+              <span className="ml-auto text-[11px] font-semibold text-primary">{previewTime}</span>
             </div>
           </div>
 
@@ -102,7 +248,7 @@ export function BlockDialog({ open, onOpenChange, block, onSave, categories }: B
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <Tag className="w-3 h-3" /> Category
             </Label>
-            <Select value={form.cat} onValueChange={v => setForm(p => ({ ...p, cat: v }))}>
+            <Select value={cat} onValueChange={setCat}>
               <SelectTrigger className="h-10 rounded-xl border-border">
                 <SelectValue />
               </SelectTrigger>
@@ -125,15 +271,15 @@ export function BlockDialog({ open, onOpenChange, block, onSave, categories }: B
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold mt-1"
                 style={{ background: selectedCat.color, color: selectedCat.accent }}
               >
-                {selectedCat.icon} {form.cat}
+                {selectedCat.icon} {cat}
               </div>
             )}
           </div>
 
-          {/* Save button */}
+          {/* Save */}
           <Button
             onClick={handleSave}
-            disabled={!form.block || !form.time}
+            disabled={!name.trim()}
             className="w-full h-11 gradient-brand text-primary-foreground font-semibold rounded-xl border-0 text-sm mt-1"
           >
             {block ? "Save Changes" : "Add Block"}
