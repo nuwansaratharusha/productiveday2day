@@ -24,9 +24,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
   if (hideNav) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-background">
+      {/* Nav is fixed, so main just needs bottom padding to clear it */}
       <main
-        className="flex-1 w-full"
+        className="w-full"
         style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" }}
       >
         {children}

@@ -293,8 +293,16 @@
 
 /* ── Mobile / Touch optimisations ─────────────────────────── */
 
-/* CRITICAL: Prevent horizontal page scroll and viewport overflow on mobile */
-html, body {
+/* CRITICAL: Prevent horizontal page scroll.
+   overflow-x: hidden must go on body ONLY — setting it on html turns html
+   into a scroll container (CSS spec: visible + non-visible = auto), which
+   removes the page scroll and locks content at 100vh on desktop. */
+html {
+  max-width: 100vw;
+  width: 100%;
+}
+
+body {
   overflow-x: hidden;
   max-width: 100vw;
   width: 100%;
