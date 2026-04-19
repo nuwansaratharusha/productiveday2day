@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Plus, Palette, RotateCcw } from "lucide-react";
 import { MigrationBanner } from "@/lib/migration/MigrationBanner";
 import { useDragReorder } from "@/hooks/useDragReorder";
@@ -10,6 +10,7 @@ import { TimeBlock } from "@/components/planner/TimeBlock";
 import { BlockDialog } from "@/components/planner/BlockDialog";
 import { DayActionsBar } from "@/components/planner/DayActionsBar";
 import { OnboardingWizard, OnboardingData } from "@/components/planner/OnboardingWizard";
+import { AIPlannerChat } from "@/components/planner/AIPlannerChat";
 import { CategoryManager } from "@/components/planner/CategoryManager";
 import { BreakSuggestionCard } from "@/components/planner/BreakSuggestionCard";
 import {
@@ -80,25 +81,53 @@ export default function Index() {
     saveBlocks, toggleComplete, bulkCreate, clearAllBlocks,
   } = usePlannerBlocks(selectedDate);
 
-  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  // ── Onboarding / AI chat state ────────────────────────────────
+  // "null"    = still loading
+  // "ai"      = show AI chat (day has no blocks yet)
+  // "classic" = show classic OnboardingWizard
+  // "ready"   = show planner
+  type PlannerMode = null | "ai" | "classic" | "ready";
+  const [mode, setMode] = useState<PlannerMode>(null);
+  const modeInitialised = useRef(false);
+
+  // Set mode once after first load — don't react to hasAnyBlocks changes
+  // (saves from AI chat must not auto-dismiss the chat)
   useEffect(() => {
-    if (!loading) setOnboarded(hasAnyBlocks);
-  }, [loading, hasAnyBlocks]);
+    if (!loading && !modeInitialised.current) {
+      modeInitialised.current = true;
+      setMode(hasAnyBlocks ? "ready" : "ai");
+    }
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
 
+  // AI planner: save blocks for today's date, keep chat open
+  const handleAISaveBlocks = useCallback(
+    async (blocks: TimeBlockData[]) => {
+      await saveBlocks(blocks);
+    },
+    [saveBlocks],
+  );
+
+  // AI planner: user taps "Open Planner" → transition
+  const handleAIViewPlanner = useCallback(() => {
+    setMode("ready");
+  }, []);
+
+  // Classic onboarding
   const handleOnboardingComplete = useCallback(async (data: OnboardingData) => {
     const schedule = generateSmartSchedule(data);
     await bulkCreate(schedule);
-    setOnboarded(true);
+    setMode("ready");
   }, [bulkCreate]);
 
   const handleResetOnboarding = useCallback(async () => {
     await clearAllBlocks();
-    setOnboarded(false);
+    modeInitialised.current = false; // allow re-init on next load
+    setMode("ai");
   }, [clearAllBlocks]);
 
   const handleCategorySave = (cats: Record<string, Category>) => {
@@ -184,7 +213,34 @@ export default function Index() {
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
   }, [blocks]);
 
-  if (onboarded === false) {
+  // ── Mode-based routing ─────────────────────────────────────────
+  // Compute a human-readable date label for the AI chat header
+  const aiDateLabel = useMemo(() => {
+    const d = new Date(selectedDate + "T12:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  }, [selectedDate]);
+
+  if (mode === null) {
+    // Loading — show nothing (or a minimal skeleton)
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (mode === "ai") {
+    return (
+      <AIPlannerChat
+        onSaveBlocks={handleAISaveBlocks}
+        onViewPlanner={handleAIViewPlanner}
+        onUseClassic={() => setMode("classic")}
+        dateLabel={aiDateLabel}
+      />
+    );
+  }
+
+  if (mode === "classic") {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
