@@ -238,6 +238,23 @@
   animation: glow-pulse 3s ease-in-out infinite;
 }
 
+/* Active block full-background animated gradient wash */
+@keyframes active-bg-flow {
+  0%   { background-position: 0% 50%;   opacity: 0.07; }
+  50%  { background-position: 100% 50%; opacity: 0.13; }
+  100% { background-position: 0% 50%;   opacity: 0.07; }
+}
+.animate-active-bg {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--zip-orange)),
+    hsl(var(--zip-red)),
+    hsl(var(--zip-orange))
+  );
+  background-size: 300% 300%;
+  animation: active-bg-flow 2.8s ease-in-out infinite;
+}
+
 /* Float for logo / decorative */
 @keyframes float {
   0%, 100% { transform: translateY(0); }

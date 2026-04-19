@@ -44,8 +44,10 @@ export function TimeBlock({
     onToggle();
   };
 
-  // Parse start time from "9:00 AM – 10:00 AM"
-  const startTime = block.time.split("–")[0].trim();
+  // Parse start–end from "9:00 AM – 10:00 AM"
+  const timeParts = block.time.split(/[–—]/);
+  const startTime = timeParts[0]?.trim() ?? "";
+  const endTime   = timeParts[1]?.trim() ?? "";
 
   return (
     <div
@@ -54,7 +56,7 @@ export function TimeBlock({
         "bg-card border cursor-pointer select-none",
         "transition-all duration-200 animate-stagger",
         isDragging ? "opacity-40 scale-[0.97] shadow-card-hover" : "hover:shadow-card-hover hover:-translate-y-[1px]",
-        isActive ? "border-primary/25 animate-glow" : "border-border/50 hover:border-border",
+        isActive ? "border-primary/30 shadow-active" : "border-border/50 hover:border-border",
         completed ? "opacity-55" : "",
       ].join(" ")}
       style={{ animationDelay: `${index * 45}ms` }}
@@ -74,9 +76,12 @@ export function TimeBlock({
         <div className="absolute -bottom-px left-4 right-4 h-0.5 gradient-brand rounded-full z-10 animate-scale-in" />
       )}
 
-      {/* Active block top glow stripe */}
+      {/* Active block: animated gradient wash + top stripe */}
       {isActive && (
-        <div className="absolute top-0 left-0 right-0 h-[2px] gradient-brand animate-pulse-active" />
+        <>
+          <div className="absolute inset-0 rounded-2xl animate-active-bg pointer-events-none" />
+          <div className="absolute top-0 left-0 right-0 h-[2px] gradient-brand animate-pulse-active" />
+        </>
       )}
 
       {/* Left: category color bar + drag handle */}
@@ -161,10 +166,14 @@ export function TimeBlock({
 
         {/* Right: time + category + actions */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          {/* Time + duration */}
+          {/* Time range: start → end */}
           <div className="text-right">
             <div className="text-[11px] font-bold text-foreground tabular-nums leading-none">{startTime}</div>
-            <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">{block.dur}m</div>
+            {endTime ? (
+              <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">{endTime}</div>
+            ) : (
+              <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">{block.dur}m</div>
+            )}
           </div>
 
           {/* Category badge */}

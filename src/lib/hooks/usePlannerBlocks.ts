@@ -219,10 +219,13 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
         await supabase.from("tasks").delete().in("id", toDelete).eq("user_id", user.id);
       }
 
-      // Upsert each block
+      // Upsert each block — collect all final real IDs
+      const finalIds = new Set<string>();
+
       await Promise.all(
         newBlocks.map(async (block, i) => {
           if (isUUID(block.id)) {
+            finalIds.add(block.id);
             await supabase
               .from("tasks")
               .update({
@@ -244,14 +247,15 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
             if (inserted?.id) {
               const tempId = block.id;
               const realId = inserted.id;
+              finalIds.add(realId);
               setBlocks(prev => prev.map(b => b.id === tempId ? { ...b, id: realId } : b));
-              rowIdsRef.current.add(realId);
             }
           }
         })
       );
 
-      rowIdsRef.current = new Set(newBlocks.filter(b => isUUID(b.id)).map(b => b.id));
+      // Use the collected real IDs — don't overwrite with the (stale) newBlocks filter
+      rowIdsRef.current = finalIds;
       setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
     },
     [user, supabase, selectedDate]
