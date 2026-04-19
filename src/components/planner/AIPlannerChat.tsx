@@ -5,13 +5,11 @@
 // =============================================================
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Sparkles, Send, ArrowRight, Key, ChevronRight, RotateCcw,
-} from "lucide-react";
+import { Sparkles, Send, ChevronRight } from "lucide-react";
 import type { TimeBlockData } from "@/data/plannerData";
 import {
   callGroq, parsePlanFromResponse,
-  getGroqKey, saveGroqKey,
+  getGroqKey,
   type ChatMessage,
 } from "@/lib/groq";
 
@@ -84,14 +82,8 @@ interface UIMessage {
 export function AIPlannerChat({
   onSaveBlocks, onViewPlanner, onUseClassic, dateLabel,
 }: Props) {
-  // ── Step: "setup" if no key, "chat" otherwise ──────────────
-  const [step, setStep] = useState<"setup" | "chat">(
-    () => (getGroqKey() ? "chat" : "setup"),
-  );
-
-  // ── Setup screen state ─────────────────────────────────────
-  const [keyInput, setKeyInput] = useState("");
-  const [keyError, setKeyError] = useState("");
+  // Always start in chat — key is pre-configured
+  const [step] = useState<"chat">("chat");
 
   // ── Chat state ─────────────────────────────────────────────
   const [messages, setMessages] = useState<UIMessage[]>([]);
@@ -125,18 +117,6 @@ export function AIPlannerChat({
     ta.style.height = "auto";
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
   }, [input]);
-
-  // ── Save API key ───────────────────────────────────────────
-  const handleSaveKey = () => {
-    const trimmed = keyInput.trim();
-    if (!trimmed) { setKeyError("Please enter your Groq API key."); return; }
-    if (!trimmed.startsWith("gsk_")) {
-      setKeyError("Key should start with gsk_. Get yours free at console.groq.com");
-      return;
-    }
-    saveGroqKey(trimmed);
-    setStep("chat");
-  };
 
   // ── Send message ───────────────────────────────────────────
   const sendMessage = useCallback(async () => {
@@ -183,9 +163,6 @@ export function AIPlannerChat({
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";
       setError(msg);
-      if (msg.includes("401") || msg.toLowerCase().includes("invalid_api_key")) {
-        setStep("setup");
-      }
     } finally {
       setLoading(false);
     }
@@ -200,85 +177,9 @@ export function AIPlannerChat({
   };
 
   // ══════════════════════════════════════════════════════════════
-  // SETUP SCREEN
-  // ══════════════════════════════════════════════════════════════
-  if (step === "setup") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-5 py-10">
-        <div className="w-full max-w-sm">
-          {/* Icon */}
-          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 mx-auto">
-            <Sparkles className="w-7 h-7 text-primary" />
-          </div>
-
-          <h1 className="text-xl font-bold text-center mb-1.5">AI Daily Planner</h1>
-          <p className="text-sm text-muted-foreground text-center mb-8 leading-relaxed">
-            Describe your day and AI builds your<br />optimised time-blocked schedule.
-          </p>
-
-          {/* Key input card */}
-          <div className="bg-card border border-border/60 rounded-2xl p-5 mb-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <Key className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">Groq API Key</span>
-              <span className="text-[10px] text-muted-foreground ml-auto bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
-                Free
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              Get your free key at{" "}
-              <a
-                href="https://console.groq.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline underline-offset-2"
-              >
-                console.groq.com
-              </a>{" "}
-              — no credit card required. It&apos;s instant.
-            </p>
-
-            <input
-              type="password"
-              placeholder="gsk_••••••••••••••••••••"
-              value={keyInput}
-              onChange={(e) => { setKeyInput(e.target.value); setKeyError(""); }}
-              onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
-              className="w-full h-11 rounded-xl border border-border bg-background px-3.5 text-sm
-                         outline-none focus:ring-2 focus:ring-primary/30 transition"
-              style={{ fontSize: 16 }}
-            />
-
-            {keyError && (
-              <p className="text-xs text-destructive mt-2">{keyError}</p>
-            )}
-
-            <button
-              onClick={handleSaveKey}
-              className="w-full h-11 rounded-xl bg-primary text-primary-foreground text-sm font-semibold
-                         mt-3 flex items-center justify-center gap-2
-                         hover:opacity-90 active:scale-[0.98] transition"
-            >
-              Start Planning
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <button
-            onClick={onUseClassic}
-            className="w-full text-center text-sm text-muted-foreground hover:text-foreground
-                       transition py-2 underline-offset-2 hover:underline"
-          >
-            Set up manually without AI →
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
   // CHAT SCREEN
   // ══════════════════════════════════════════════════════════════
+  void step; // always "chat" — kept for future extension
   return (
     <div className="min-h-screen bg-background flex flex-col">
 
@@ -297,23 +198,12 @@ export function AIPlannerChat({
           <p className="text-[11px] text-muted-foreground ml-8 mt-0.5">{dateLabel}</p>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {/* Re-enter key */}
-          <button
-            onClick={() => setStep("setup")}
-            title="Change API key"
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted/60 transition text-muted-foreground"
-          >
-            <Key className="w-3.5 h-3.5" />
-          </button>
-          {/* Skip */}
-          <button
-            onClick={onViewPlanner}
-            className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted/50 transition"
-          >
-            {planReady ? "Open Planner →" : "Skip"}
-          </button>
-        </div>
+        <button
+          onClick={onViewPlanner}
+          className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted/50 transition"
+        >
+          {planReady ? "Open Planner →" : "Skip"}
+        </button>
       </div>
 
       {/* ── Messages ────────────────────────────────────────── */}

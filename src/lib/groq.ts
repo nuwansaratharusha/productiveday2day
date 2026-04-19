@@ -1,7 +1,5 @@
 // =============================================================
 // ProductiveDay — Groq AI client for daily schedule generation
-// Free tier: llama-3.3-70b-versatile, no credit card needed
-// Get your key at: https://console.groq.com
 // =============================================================
 
 import type { TimeBlockData } from "@/data/plannerData";
@@ -10,10 +8,19 @@ export const GROQ_KEY_STORAGE = "pd-groq-key";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 
+// Built-in key loaded from the Vite environment variable VITE_GROQ_KEY.
+// Set it in Vercel → Settings → Environment Variables (or .env.local for local dev).
+// A key saved in localStorage takes precedence (for per-user overrides).
+const ENV_KEY: string = (import.meta as { env?: Record<string, string> }).env?.VITE_GROQ_KEY ?? "";
+
 // ─── Key helpers ───────────────────────────────────────────────
 
-export function getGroqKey(): string | null {
-  try { return localStorage.getItem(GROQ_KEY_STORAGE); } catch { return null; }
+export function getGroqKey(): string {
+  try {
+    return localStorage.getItem(GROQ_KEY_STORAGE) || ENV_KEY;
+  } catch {
+    return ENV_KEY;
+  }
 }
 
 export function saveGroqKey(key: string): void {
