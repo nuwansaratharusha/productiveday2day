@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Plus, Palette, RotateCcw } from "lucide-react";
+import { Plus, Palette, RotateCcw, Bell } from "lucide-react";
+import { useNavContext } from "@/lib/context/NavContext";
 import { MigrationBanner } from "@/lib/migration/MigrationBanner";
 import { useDragReorder } from "@/hooks/useDragReorder";
 import { usePlannerBlocks } from "@/lib/hooks/usePlannerBlocks";
@@ -102,6 +103,81 @@ export default function Index() {
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(interval);
+  }, []);
+
+  // ── Hide bottom nav during AI chat / onboarding ───────────────
+  const { setHideNav } = useNavContext();
+  useEffect(() => {
+    const shouldHide = mode === "ai" || mode === "classic";
+    setHideNav(shouldHide);
+    return () => setHideNav(false);
+  }, [mode, setHideNav]);
+
+  // ── Browser notifications for time-slot transitions ───────────
+  // Parse the end time of a block's time string → minutes since midnight
+  function parseBlockEndMins(timeStr: string): number | null {
+    const parts = timeStr.split(/[–—-]/);
+    if (parts.length < 2) return null;
+    const endRaw = parts[1].trim();
+    const ampmMatch = endRaw.match(/(AM|PM)/i);
+    if (!ampmMatch) return null;
+    const period = ampmMatch[1].toUpperCase();
+    const num = endRaw.replace(/\s*(AM|PM)/i, "").trim();
+    const [hStr = "0", mStr = "0"] = num.split(":");
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    return isNaN(h) || isNaN(m) ? null : h * 60 + m;
+  }
+
+  const notifiedRef = useRef<Set<string>>(new Set());
+  // Reset fired notifications at midnight
+  useEffect(() => {
+    const d = new Date();
+    const msUntilMidnight =
+      new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime() - d.getTime();
+    const t = setTimeout(() => { notifiedRef.current = new Set(); }, msUntilMidnight);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "ready" || blocks.length === 0) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    // Only fire for today's planner
+    if (selectedDay !== defaultDay) return;
+
+    const currentMins = time.getHours() * 60 + time.getMinutes();
+
+    blocks.forEach((block, i) => {
+      const endMins = parseBlockEndMins(block.time);
+      if (endMins === null) return;
+      const key = `${selectedDate}-${block.id}-${endMins}`;
+      if (notifiedRef.current.has(key)) return;
+      if (currentMins === endMins) {
+        notifiedRef.current.add(key);
+        const nextBlock = blocks[i + 1];
+        try {
+          new Notification("⏰ Time to switch!", {
+            body: nextBlock
+              ? `Next up: ${nextBlock.block}`
+              : "That's the last block — great work today! 🎉",
+            icon: "/favicon.ico",
+            tag: key,
+          });
+        } catch { /* notifications not available */ }
+      }
+    });
+  }, [time, blocks, mode, selectedDay, defaultDay, selectedDate]);
+
+  // Request notification permission (shown as a small bell button in the planner)
+  const [notifPermission, setNotifPermission] = useState<string>(
+    typeof Notification !== "undefined" ? Notification.permission : "default"
+  );
+  const requestNotifPermission = useCallback(async () => {
+    if (!("Notification" in window)) return;
+    const result = await Notification.requestPermission();
+    setNotifPermission(result);
   }, []);
 
   // AI planner: save blocks for today's date, keep chat open
@@ -286,6 +362,17 @@ export default function Index() {
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Bell: request notification permission if not yet granted */}
+            {notifPermission !== "granted" && notifPermission !== "denied" && (
+              <Button
+                size="sm" variant="ghost"
+                className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={requestNotifPermission}
+                title="Enable time-slot alerts"
+              >
+                <Bell className="w-3.5 h-3.5" />
+              </Button>
+            )}
             <Button
               size="sm" variant="ghost"
               className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"

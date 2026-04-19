@@ -300,6 +300,9 @@
 html {
   max-width: 100vw;
   width: 100%;
+  /* Reserve scrollbar space even on pages where content doesn't overflow.
+     Prevents the ~15px layout shift when navigating between short and tall pages. */
+  scrollbar-gutter: stable;
 }
 
 body {

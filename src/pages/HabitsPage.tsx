@@ -1,13 +1,13 @@
 // =============================================================
-// ProductiveDay — Habits Tracker Page
+// ProductiveDay — Habits Tracker Page  +  Don't-Do List
 // =============================================================
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Flame, CheckCircle2, Circle, Trophy, Target, X, Check } from "lucide-react";
+import { Plus, Flame, CheckCircle2, Circle, Trophy, Target, X, Check, ShieldOff, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { PlannerHeader } from "@/components/planner/PlannerHeader";
 import { cn } from "@/lib/utils";
 
+// ─── Habit types ─────────────────────────────────────────────
 interface Habit {
   id: string;
   title: string;
@@ -21,20 +21,67 @@ interface Habit {
   today_completed?: boolean;
   today_count?: number;
   current_streak?: number;
-  week_history?: boolean[]; // last 7 days
+  week_history?: boolean[];
 }
 
+// ─── Don't-Do types ──────────────────────────────────────────
+type DontDoCategory = "health" | "productivity" | "mindset" | "social";
+
+interface DontDoItem {
+  id: string;
+  title: string;
+  category: DontDoCategory;
+  streak: number;           // days clean (computed from lastSlipDate)
+  lastSlipDate: string | null;
+  createdAt: string;
+}
+
+const DONTDO_KEY = "pd-dontdo";
+
+const DONT_CATEGORIES: { value: DontDoCategory; label: string; color: string; bg: string; emoji: string }[] = [
+  { value: "health",       label: "Health",       color: "#f43f5e", bg: "bg-rose-500/10",   emoji: "🚫" },
+  { value: "productivity", label: "Focus",        color: "#3b82f6", bg: "bg-blue-500/10",   emoji: "🧠" },
+  { value: "mindset",      label: "Mindset",      color: "#a855f7", bg: "bg-purple-500/10", emoji: "💭" },
+  { value: "social",       label: "Social",       color: "#f59e0b", bg: "bg-amber-500/10",  emoji: "🤝" },
+];
+
+function getCatMeta(cat: DontDoCategory) {
+  return DONT_CATEGORIES.find((c) => c.value === cat) ?? DONT_CATEGORIES[0];
+}
+
+function daysClean(item: DontDoItem): number {
+  const ref = item.lastSlipDate ?? item.createdAt;
+  const refDate = new Date(ref);
+  const today = new Date();
+  refDate.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((today.getTime() - refDate.getTime()) / 86400000));
+}
+
+function loadDontDo(): DontDoItem[] {
+  try {
+    const raw = localStorage.getItem(DONTDO_KEY);
+    return raw ? (JSON.parse(raw) as DontDoItem[]) : [];
+  } catch { return []; }
+}
+
+function saveDontDo(items: DontDoItem[]) {
+  localStorage.setItem(DONTDO_KEY, JSON.stringify(items));
+}
+
+// ─── Colours / icons ─────────────────────────────────────────
 const COLORS = [
   { label: "Orange", value: "#f97316" },
-  { label: "Blue", value: "#3b82f6" },
-  { label: "Emerald", value: "#10b981" },
+  { label: "Blue",   value: "#3b82f6" },
+  { label: "Emerald",value: "#10b981" },
   { label: "Purple", value: "#a855f7" },
-  { label: "Pink", value: "#ec4899" },
+  { label: "Pink",   value: "#ec4899" },
   { label: "Yellow", value: "#eab308" },
 ];
 
 const ICONS = ["💪","🏃","📚","💧","🧘","🛌","🥗","✍️","🎯","🎸","🌿","🧠"];
 
+// ─── StreakRing ───────────────────────────────────────────────
 function StreakRing({ pct, color, size = 64 }: { pct: number; color: string; size?: number }) {
   const r = (size - 8) / 2;
   const circ = 2 * Math.PI * r;
@@ -53,6 +100,7 @@ function StreakRing({ pct, color, size = 64 }: { pct: number; color: string; siz
   );
 }
 
+// ─── HabitCard ───────────────────────────────────────────────
 function HabitCard({ habit, onToggle, onDelete }: {
   habit: Habit;
   onToggle: (id: string) => void;
@@ -125,6 +173,7 @@ function HabitCard({ habit, onToggle, onDelete }: {
   );
 }
 
+// ─── AddHabitSheet ────────────────────────────────────────────
 function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void; onClose: () => void }) {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -137,12 +186,10 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
       <div className="relative w-full bg-background rounded-t-3xl flex flex-col overflow-hidden"
         style={{ maxHeight: "85vh" }}>
 
-        {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
           <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
         </div>
 
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
           <div>
             <h3 className="text-base font-bold text-foreground">New Habit</h3>
@@ -153,7 +200,6 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
           </button>
         </div>
 
-        {/* Scrollable content */}
         <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-2">
         <div className="space-y-4">
           <input
@@ -170,7 +216,6 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
             className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
 
-          {/* Icon picker */}
           <div>
             <div className="text-[11px] text-muted-foreground mb-1.5 font-medium">Icon</div>
             <div className="flex flex-wrap gap-1.5">
@@ -187,7 +232,6 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
             </div>
           </div>
 
-          {/* Color picker */}
           <div>
             <div className="text-[11px] text-muted-foreground mb-1.5 font-medium">Color</div>
             <div className="flex gap-2">
@@ -204,11 +248,9 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
               ))}
             </div>
           </div>
-
         </div>
         </div>
 
-        {/* Sticky footer button */}
         <div className="flex-shrink-0 px-5 pt-3 pb-8 border-t border-border/30 bg-background">
           <button
             disabled={!title.trim()}
@@ -227,6 +269,162 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
   );
 }
 
+// ─── AddDontDoSheet ──────────────────────────────────────────
+function AddDontDoSheet({ onAdd, onClose }: {
+  onAdd: (item: Omit<DontDoItem, "id" | "streak" | "lastSlipDate" | "createdAt">) => void;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [cat, setCat] = useState<DontDoCategory>("productivity");
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full bg-background rounded-t-3xl flex flex-col overflow-hidden"
+        style={{ maxHeight: "75vh" }}>
+
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
+          <div>
+            <h3 className="text-base font-bold text-foreground">Add Restriction</h3>
+            <p className="text-xs text-muted-foreground">Track what you're choosing not to do</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-2 space-y-4">
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. No social media before noon"
+            className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
+
+          <div>
+            <div className="text-[11px] text-muted-foreground mb-2 font-medium">Category</div>
+            <div className="grid grid-cols-2 gap-2">
+              {DONT_CATEGORIES.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => setCat(c.value)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all",
+                    cat === c.value
+                      ? "border-current text-white"
+                      : "border-border/40 text-muted-foreground hover:border-border"
+                  )}
+                  style={cat === c.value ? { backgroundColor: c.color, borderColor: c.color } : {}}
+                >
+                  <span>{c.emoji}</span>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 px-5 pt-3 pb-8 border-t border-border/30 bg-background">
+          <button
+            disabled={!title.trim()}
+            onClick={() => {
+              if (!title.trim()) return;
+              onAdd({ title: title.trim(), category: cat });
+              onClose();
+            }}
+            className="w-full py-3.5 rounded-2xl text-sm font-bold bg-primary text-primary-foreground disabled:opacity-40 transition-all active:scale-[0.98] shadow-sm"
+          >
+            Add Restriction ✓
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DontDoCard ──────────────────────────────────────────────
+function DontDoCard({ item, onSlip, onDelete }: {
+  item: DontDoItem;
+  onSlip: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [confirmSlip, setConfirmSlip] = useState(false);
+  const meta = getCatMeta(item.category);
+  const clean = daysClean(item);
+
+  // Milestone colours
+  const streakColor = clean >= 30 ? "#10b981" : clean >= 7 ? "#f97316" : clean >= 3 ? "#3b82f6" : meta.color;
+
+  return (
+    <div className="rounded-xl border border-border/40 bg-card/60 backdrop-blur-sm p-4 transition-all duration-300">
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+          {/* Category pill */}
+          <span
+            className="mt-0.5 flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: meta.color + "20", color: meta.color }}
+          >
+            {meta.emoji} {meta.label}
+          </span>
+        </div>
+        <button
+          onClick={() => onDelete(item.id)}
+          className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+
+      <p className="text-sm font-semibold text-foreground mb-3 leading-snug">{item.title}</p>
+
+      <div className="flex items-center justify-between">
+        {/* Clean streak */}
+        <div className="flex items-center gap-1.5">
+          <ShieldOff className="w-3.5 h-3.5" style={{ color: streakColor }} />
+          <span className="text-xs font-bold" style={{ color: streakColor }}>
+            {clean === 0 ? "Start today" : `${clean}d clean`}
+          </span>
+          {clean >= 7 && <span className="text-[10px]">🔥</span>}
+          {clean >= 30 && <span className="text-[10px]">⭐</span>}
+        </div>
+
+        {/* Slip button */}
+        {confirmSlip ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground">Reset streak?</span>
+            <button
+              onClick={() => { onSlip(item.id); setConfirmSlip(false); }}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 transition-colors"
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => setConfirmSlip(false)}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-border/50 text-muted-foreground hover:bg-muted/30 transition-colors"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmSlip(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-rose-500/25 text-rose-400/70 hover:border-rose-500/50 hover:text-rose-400 hover:bg-rose-500/8 transition-all"
+          >
+            <AlertTriangle className="w-3 h-3" />
+            I slipped
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────
 export default function HabitsPage() {
   const { user } = useAuth();
   const supabase = useMemo(() => createClient(), []);
@@ -235,7 +433,17 @@ export default function HabitsPage() {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
 
+  // Don't-Do state
+  const [dontDo, setDontDo] = useState<DontDoItem[]>([]);
+  const [dontDoOpen, setDontDoOpen] = useState(false);
+  const [addDontDoOpen, setAddDontDoOpen] = useState(false);
+
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Load don't-do from localStorage
+  useEffect(() => {
+    setDontDo(loadDontDo());
+  }, []);
 
   const fetchHabits = useCallback(async () => {
     if (!user) return;
@@ -249,7 +457,6 @@ export default function HabitsPage() {
 
     if (!habitsData) { setLoading(false); return; }
 
-    // Get completions for last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     const since = sevenDaysAgo.toISOString().slice(0, 10);
@@ -266,7 +473,6 @@ export default function HabitsPage() {
       compMap[c.habit_id].add(c.completed_date);
     }
 
-    // Build 7-day history array
     const last7: string[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -274,7 +480,6 @@ export default function HabitsPage() {
       last7.push(d.toISOString().slice(0, 10));
     }
 
-    // Calculate streak
     function calcStreak(dates: Set<string>): number {
       let streak = 0;
       const d = new Date();
@@ -307,10 +512,11 @@ export default function HabitsPage() {
     const habit = habits.find((h) => h.id === id);
     if (!habit) return;
     const done = !!habit.today_completed;
-
-    // Optimistic update
-    setHabits((prev) => prev.map((h) => h.id === id ? { ...h, today_completed: !done, current_streak: !done ? (h.current_streak ?? 0) + 1 : Math.max(0, (h.current_streak ?? 0) - 1) } : h));
-
+    setHabits((prev) => prev.map((h) => h.id === id ? {
+      ...h,
+      today_completed: !done,
+      current_streak: !done ? (h.current_streak ?? 0) + 1 : Math.max(0, (h.current_streak ?? 0) - 1)
+    } : h));
     if (done) {
       await supabase.from("habit_completions").delete()
         .eq("habit_id", id).eq("user_id", user.id).eq("completed_date", todayStr);
@@ -337,9 +543,40 @@ export default function HabitsPage() {
     await supabase.from("habits").update({ is_active: false }).eq("id", id).eq("user_id", user.id);
   };
 
+  // Don't-Do handlers
+  const addDontDoItem = (data: Omit<DontDoItem, "id" | "streak" | "lastSlipDate" | "createdAt">) => {
+    const item: DontDoItem = {
+      id: crypto.randomUUID(),
+      ...data,
+      streak: 0,
+      lastSlipDate: null,
+      createdAt: todayStr,
+    };
+    const updated = [...dontDo, item];
+    setDontDo(updated);
+    saveDontDo(updated);
+  };
+
+  const slipDontDoItem = (id: string) => {
+    const updated = dontDo.map((item) =>
+      item.id === id ? { ...item, lastSlipDate: todayStr, streak: 0 } : item
+    );
+    setDontDo(updated);
+    saveDontDo(updated);
+  };
+
+  const deleteDontDoItem = (id: string) => {
+    const updated = dontDo.filter((item) => item.id !== id);
+    setDontDo(updated);
+    saveDontDo(updated);
+  };
+
   const totalToday = habits.length;
   const doneToday = habits.filter((h) => h.today_completed).length;
   const bestStreak = habits.reduce((max, h) => Math.max(max, h.current_streak ?? 0), 0);
+
+  // Best clean streak across don't-do items
+  const bestClean = dontDo.reduce((max, item) => Math.max(max, daysClean(item)), 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -356,7 +593,7 @@ export default function HabitsPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pt-4 pb-4">
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-8">
 
         {/* Bento stats row */}
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -383,7 +620,7 @@ export default function HabitsPage() {
           </div>
         </div>
 
-        {/* Habit cards */}
+        {/* ── Habit cards ─────────────────────────────── */}
         {loading ? (
           <div className="space-y-2">
             {[1,2,3].map((i) => (
@@ -391,7 +628,7 @@ export default function HabitsPage() {
             ))}
           </div>
         ) : habits.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/40 p-10 text-center">
+          <div className="rounded-xl border border-dashed border-border/40 p-10 text-center mb-6">
             <div className="text-3xl mb-2">🌱</div>
             <div className="text-sm font-medium text-foreground mb-1">No habits yet</div>
             <div className="text-xs text-muted-foreground mb-4">Start building your first daily habit</div>
@@ -403,15 +640,88 @@ export default function HabitsPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 mb-6">
             {habits.map((habit) => (
               <HabitCard key={habit.id} habit={habit} onToggle={toggleHabit} onDelete={deleteHabit} />
             ))}
           </div>
         )}
+
+        {/* ── Don't-Do List ──────────────────────────── */}
+        <div className="mt-2">
+          {/* Section header — collapsible */}
+          <button
+            onClick={() => setDontDoOpen((v) => !v)}
+            className="w-full flex items-center justify-between mb-3 group"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/10 flex items-center justify-center">
+                <ShieldOff className="w-3.5 h-3.5 text-rose-400" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-bold text-foreground leading-tight">Don't-Do List</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {dontDo.length === 0
+                    ? "Track restrictions you want to keep"
+                    : `${dontDo.length} restriction${dontDo.length !== 1 ? "s" : ""}${bestClean > 0 ? ` · best ${bestClean}d clean` : ""}`}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); setAddDontDoOpen(true); setDontDoOpen(true); }}
+                className="w-7 h-7 rounded-lg border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+              {dontDo.length > 0 && (
+                dontDoOpen
+                  ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  : <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              )}
+            </div>
+          </button>
+
+          {/* Don't-do items */}
+          {(dontDoOpen || dontDo.length === 0) && (
+            dontDo.length === 0 ? (
+              <div
+                onClick={() => setAddDontDoOpen(true)}
+                className="rounded-xl border border-dashed border-rose-500/20 bg-rose-500/3 p-6 text-center cursor-pointer hover:border-rose-500/40 transition-colors"
+              >
+                <div className="text-2xl mb-2">🚫</div>
+                <div className="text-sm font-medium text-foreground mb-1">Nothing on your don't-do list</div>
+                <div className="text-xs text-muted-foreground mb-3">
+                  Add habits or behaviours you're consciously avoiding — like social media in the morning or late-night snacking
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <Plus className="w-3 h-3" /> Add first restriction
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {dontDo.map((item) => (
+                  <DontDoCard
+                    key={item.id}
+                    item={item}
+                    onSlip={slipDontDoItem}
+                    onDelete={deleteDontDoItem}
+                  />
+                ))}
+                <button
+                  onClick={() => setAddDontDoOpen(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl border border-dashed border-rose-500/20 text-xs font-semibold text-rose-400/60 hover:border-rose-500/40 hover:text-rose-400 hover:bg-rose-500/5 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add restriction
+                </button>
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       {addOpen && <AddHabitSheet onAdd={addHabit} onClose={() => setAddOpen(false)} />}
+      {addDontDoOpen && <AddDontDoSheet onAdd={addDontDoItem} onClose={() => setAddDontDoOpen(false)} />}
     </div>
   );
 }

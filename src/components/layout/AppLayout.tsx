@@ -5,6 +5,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { CalendarDays, LayoutGrid, Flame, BarChart3, User, Clapperboard, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useNavContext } from "@/lib/context/NavContext";
 
 const NAV_ITEMS = [
   { to: "/",          icon: LayoutGrid,  label: "Planner"  },
@@ -18,10 +19,20 @@ const NAV_ITEMS = [
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const { hideNav: onboardingHideNav } = useNavContext();
 
-  // Auth pages — no nav
-  const hideNav = ["/login", "/signup", "/auth/callback"].includes(location.pathname);
-  if (hideNav) return <>{children}</>;
+  // Auth pages — no nav, no wrapper
+  const isAuthPage = ["/login", "/signup", "/auth/callback"].includes(location.pathname);
+  if (isAuthPage) return <>{children}</>;
+
+  // Onboarding / AI chat — show children full-screen, no nav, no bottom padding
+  if (onboardingHideNav) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="w-full">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

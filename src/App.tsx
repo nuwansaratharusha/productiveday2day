@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { NavProvider } from "@/lib/context/NavContext";
 import Index from "./pages/Index.tsx";
 import HabitsPage from "./pages/HabitsPage.tsx";
 import CalendarPage from "./pages/CalendarPage.tsx";
@@ -30,6 +31,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <NavProvider>
           <AppLayout>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
@@ -49,6 +51,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AppLayout>
+          </NavProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

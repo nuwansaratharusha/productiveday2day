@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DAYS } from "@/data/plannerData";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -30,6 +31,7 @@ function getDayTabLabel(dayIndex: number) {
 
 export function PlannerHeader({ selectedDay, defaultDay, time, onSelectDay }: PlannerHeaderProps) {
   const { user } = useAuth();
+  const [use24h, setUse24h] = useState(false);
   const hour = time.getHours();
   const greeting = getGreeting(hour);
 
@@ -37,7 +39,9 @@ export function PlannerHeader({ selectedDay, defaultDay, time, onSelectDay }: Pl
     || user?.email?.split("@")[0]
     || "";
 
-  const timeStr = time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  const timeStr = use24h
+    ? time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })   // 24h: "14:30"
+    : time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });  // 12h: "2:30 PM"
   const dateStr = time.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
@@ -56,14 +60,20 @@ export function PlannerHeader({ selectedDay, defaultDay, time, onSelectDay }: Pl
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Live clock pill */}
-            <div className="flex items-center gap-1.5 bg-muted/60 border border-border/50 px-3 py-1.5 rounded-full">
+            {/* Live clock pill — click to toggle 12h / 24h */}
+            <button
+              onClick={() => setUse24h((v) => !v)}
+              title={use24h ? "Switch to 12h format" : "Switch to 24h format"}
+              className="flex items-center gap-1.5 bg-muted/60 border border-border/50 px-3 py-1.5 rounded-full
+                         cursor-pointer hover:bg-muted/80 hover:border-border active:scale-95 transition-all duration-150
+                         select-none"
+            >
               <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary" />
               </span>
               <span className="text-[12px] font-bold tabular-nums text-foreground">{timeStr}</span>
-            </div>
+            </button>
             <UserMenu />
           </div>
         </div>
