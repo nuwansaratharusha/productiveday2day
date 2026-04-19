@@ -5,11 +5,11 @@
 // =============================================================
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, ChevronRight, Key } from "lucide-react";
+import { Sparkles, Send, ChevronRight } from "lucide-react";
 import type { TimeBlockData } from "@/data/plannerData";
 import {
   callGroq, parsePlanFromResponse,
-  getGroqKey, saveGroqKey,
+  getGroqKey,
   type ChatMessage,
 } from "@/lib/groq";
 
@@ -90,25 +90,6 @@ export function AIPlannerChat({
   const [planReady, setPlanReady] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // ── API key fallback ────────────────────────────────────────
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [keyDraft, setKeyDraft] = useState("");
-  const [keySaved, setKeySaved] = useState(false);
-
-  // Detect missing/invalid key on mount
-  useEffect(() => {
-    if (!getGroqKey()) setShowKeyInput(true);
-  }, []);
-
-  const handleSaveKey = useCallback(() => {
-    const trimmed = keyDraft.trim();
-    if (!trimmed) return;
-    saveGroqKey(trimmed);
-    setKeySaved(true);
-    setShowKeyInput(false);
-    setError(null);
-    setTimeout(() => setKeySaved(false), 3000);
-  }, [keyDraft]);
 
   // API chat history (no greeting markers)
   const historyRef = useRef<ChatMessage[]>([]);
@@ -139,7 +120,7 @@ export function AIPlannerChat({
     if (!text || loading) return;
 
     const apiKey = getGroqKey();
-    if (!apiKey) { setShowKeyInput(true); return; }
+    if (!apiKey) { setError("AI is temporarily unavailable. Please try again later."); return; }
 
     setInput("");
     setError(null);
@@ -176,14 +157,7 @@ export function AIPlannerChat({
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";
-      // Invalid / missing key → surface the key input instead of raw error
-      const isKeyError = /invalid api key|invalid_api_key|401|unauthorized/i.test(msg);
-      if (isKeyError) {
-        setShowKeyInput(true);
-        setError("Your Groq API key is invalid or missing. Please enter a valid key below.");
-      } else {
-        setError(msg);
-      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -324,59 +298,10 @@ export function AIPlannerChat({
         )}
 
         {/* Error */}
-        {error && !showKeyInput && (
+        {error && (
           <div className="bg-destructive/8 border border-destructive/20 rounded-xl px-4 py-3 text-sm text-destructive flex items-start gap-2.5">
             <span className="flex-shrink-0 mt-0.5">⚠</span>
             <span>{error}</span>
-          </div>
-        )}
-
-        {/* API Key input — shown when key is missing or invalid */}
-        {showKeyInput && (
-          <div className="bg-amber-500/8 border border-amber-500/25 rounded-2xl px-4 py-4 space-y-3">
-            <div className="flex items-start gap-2.5">
-              <Key className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">Groq API key needed</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Get a free key at{" "}
-                  <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
-                     className="text-primary underline underline-offset-2">console.groq.com/keys</a>
-                  {" "}— it takes 30 seconds.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={keyDraft}
-                onChange={(e) => setKeyDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSaveKey(); }}
-                placeholder="gsk_…"
-                autoFocus
-                className="flex-1 bg-background border border-border/60 rounded-xl px-3 py-2 text-sm
-                           outline-none focus:ring-2 focus:ring-primary/30 font-mono"
-                style={{ fontSize: 14 }}
-              />
-              <button
-                onClick={handleSaveKey}
-                disabled={!keyDraft.trim()}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground
-                           disabled:opacity-40 transition active:scale-95 flex-shrink-0"
-              >
-                Save
-              </button>
-            </div>
-            {error && (
-              <p className="text-xs text-destructive">{error}</p>
-            )}
-          </div>
-        )}
-
-        {/* Key saved confirmation */}
-        {keySaved && (
-          <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 px-1">
-            <span>✓</span> API key saved — you can now chat!
           </div>
         )}
 
