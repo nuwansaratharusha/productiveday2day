@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Plus, Palette, RotateCcw, Bell } from "lucide-react";
 import { GoogleCalendarSync } from "@/components/planner/GoogleCalendarSync";
+import { FocusMode, isLearningBlock } from "@/components/planner/FocusMode";
 import {
   getCalToken,
   syncBlocksToCalendar,
@@ -79,7 +80,13 @@ export default function Index() {
   );
 
   const [time, setTime] = useState(new Date());
+  const [focusActive, setFocusActive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Persist profession at onboarding so focus mode can read it later
+  const profession = typeof localStorage !== "undefined"
+    ? (localStorage.getItem("pd-profession") ?? "")
+    : "";
   const [editingBlock, setEditingBlock] = useState<TimeBlockData | null>(null);
   const [catManagerOpen, setCatManagerOpen] = useState(false);
   const [categories, setCategoriesState] = useState<Record<string, Category>>(loadCategories);
@@ -204,8 +211,9 @@ export default function Index() {
     setMode("ready");
   }, []);
 
-  // Classic onboarding
+  // Classic onboarding — persist profession for focus mode
   const handleOnboardingComplete = useCallback(async (data: OnboardingData) => {
+    try { localStorage.setItem("pd-profession", data.profession); } catch {}
     const schedule = generateSmartSchedule(data);
     await bulkCreate(schedule);
     setMode("ready");
@@ -241,6 +249,10 @@ export default function Index() {
   const isBreakActive =
     activeBlock?.block.toLowerCase().includes("break") &&
     !activeBlock?.block.toLowerCase().includes("breakfast");
+
+  // Focus mode: student profession + active learning block
+  const isStudent = profession === "student";
+  const showFocusEntry = isStudent && activeBlock && isLearningBlock(activeBlock) && !focusActive;
 
   const updateBlocks = useCallback(
     (newBlocks: TimeBlockData[]) => saveBlocks(newBlocks),
@@ -348,6 +360,15 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
+
+      {/* ── Focus Mode overlay (student + learning block) ─────── */}
+      {focusActive && activeBlock && (
+        <FocusMode
+          block={activeBlock}
+          onEndSession={() => setFocusActive(false)}
+        />
+      )}
+
       <PlannerHeader
         selectedDay={selectedDay}
         defaultDay={defaultDay}
@@ -371,6 +392,33 @@ export default function Index() {
 
         {!loading && isBreakActive && activeBlock && (
           <BreakSuggestionCard blockName={activeBlock.block} />
+        )}
+
+        {/* Focus Mode entry banner — student + active learning block */}
+        {!loading && showFocusEntry && activeBlock && (
+          <button
+            onClick={() => setFocusActive(true)}
+            className="w-full mb-4 flex items-center gap-3 bg-primary/8 border border-primary/25
+                       rounded-2xl px-4 py-3.5 text-left hover:bg-primary/12 active:scale-[0.99]
+                       transition-all group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0
+                            group-hover:bg-primary/20 transition-colors">
+              <span className="text-[18px]">📚</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-primary leading-tight">
+                Study block active — enter Focus Mode
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Lock this screen so you stay on track
+              </p>
+            </div>
+            <div className="text-primary/60 text-[11px] font-medium bg-primary/10 px-2.5 py-1 rounded-lg
+                            group-hover:bg-primary/20 transition-colors flex-shrink-0">
+              Start →
+            </div>
+          </button>
         )}
 
         {/* Schedule section header */}
