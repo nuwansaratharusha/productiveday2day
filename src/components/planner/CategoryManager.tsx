@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Palette } from "lucide-react";
 import { Category } from "@/data/plannerData";
+import { HABIT_ICONS, HABIT_ICON_KEYS, CatIcon } from "@/lib/categoryIcons";
 
 interface CategoryManagerProps {
   open: boolean;
@@ -26,12 +27,12 @@ const PRESET_COLORS = [
   { bg: "60 100% 94%", accent: "60 80% 40%" },
 ];
 
-const EMOJI_OPTIONS = ["☀", "📖", "💰", "⚙", "🔧", "🚀", "🎯", "✦", "🎓", "💪", "🎨", "🤝", "💡", "🧠", "❤", "🔥"];
+const ICON_OPTIONS = HABIT_ICON_KEYS;
 
 export function CategoryManager({ open, onOpenChange, categories, onSave }: CategoryManagerProps) {
   const [cats, setCats] = useState<Record<string, Category>>({ ...categories });
   const [newName, setNewName] = useState("");
-  const [newIcon, setNewIcon] = useState("🎯");
+  const [newIcon, setNewIcon] = useState(ICON_OPTIONS[8]); // "target"
   const [newColorIdx, setNewColorIdx] = useState(0);
 
   const handleAdd = () => {
@@ -106,19 +107,22 @@ export function CategoryManager({ open, onOpenChange, categories, onSave }: Cate
           <div>
             <Label className="text-xs text-muted-foreground mb-1.5 block">Icon</Label>
             <div className="flex flex-wrap gap-1.5">
-              {EMOJI_OPTIONS.map(emoji => (
-                <button
-                  key={emoji}
-                  onClick={() => setNewIcon(emoji)}
-                  className={`w-8 h-8 rounded-lg text-sm flex items-center justify-center transition-all ${
-                    newIcon === emoji
-                      ? "bg-primary text-primary-foreground scale-110"
-                      : "bg-muted/50 hover:bg-muted"
-                  }`}
-                >
-                  {emoji}
-                </button>
-              ))}
+              {ICON_OPTIONS.map(key => {
+                const IconComp = HABIT_ICONS[key];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setNewIcon(key)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                      newIcon === key
+                        ? "bg-primary text-primary-foreground scale-110"
+                        : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <IconComp className="w-4 h-4" strokeWidth={1.75} />
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div>

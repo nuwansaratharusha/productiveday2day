@@ -4,8 +4,8 @@
 // Colors, typography, spacing extracted directly from Figma
 // =============================================================
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { Download, FileText, FileSpreadsheet } from "lucide-react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { Download, FileText, FileSpreadsheet, Lightbulb, TrendingUp, TrendingDown, BarChart2 } from "lucide-react";
 import {
   getTransactions, createTransaction, updateTransaction, deleteTransaction,
   CATEGORIES, getCategoryMeta,
@@ -425,14 +425,14 @@ function AIInsightsCard({ monthly, recurring, month, currency, t }: {
       const top = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
       const items = [];
       if (all.length === 0) {
-        items.push({ icon: "💡", title: "Start tracking", desc: "Add your first transactions to get personalised financial insights." });
+        items.push({ icon: "tip",   title: "Start tracking", desc: "Add your first transactions to get personalised financial insights." });
       } else if (net >= 0) {
-        items.push({ icon: "📈", title: `${rate}% savings rate`, desc: `You saved ${formatAmount(net, currency.symbol)} this month. Keep it up!` });
+        items.push({ icon: "up",    title: `${rate}% savings rate`, desc: `You saved ${formatAmount(net, currency.symbol)} this month. Keep it up!` });
       } else {
-        items.push({ icon: "📉", title: "Over budget", desc: `You spent ${formatAmount(Math.abs(net), currency.symbol)} more than you earned. Consider cutting back.` });
+        items.push({ icon: "down",  title: "Over budget", desc: `You spent ${formatAmount(Math.abs(net), currency.symbol)} more than you earned. Consider cutting back.` });
       }
-      if (top) items.push({ icon: "📊", title: "Top spending", desc: `${top[0]} is your biggest expense at ${formatAmount(top[1], currency.symbol)}.` });
-      if (rate > 20 && net > 0) items.push({ icon: "💡", title: "Invest surplus", desc: `With a ${rate}% savings rate, consider putting the surplus to work.` });
+      if (top) items.push({ icon: "chart",  title: "Top spending", desc: `${top[0]} is your biggest expense at ${formatAmount(top[1], currency.symbol)}.` });
+      if (rate > 20 && net > 0) items.push({ icon: "tip", title: "Invest surplus", desc: `With a ${rate}% savings rate, consider putting the surplus to work.` });
       setInsights(items);
       setExpanded(true);
       setLoading(false);
@@ -504,7 +504,15 @@ function AIInsightsCard({ monthly, recurring, month, currency, t }: {
               background: FG.cardBg, border: `1px solid ${FG.cardBorder}`, borderRadius: 6, padding: "10px 12px",
               display: "flex", alignItems: "flex-start", gap: 10,
             }}>
-              <span style={{ fontSize: 14, flexShrink: 0 }}>{ins.icon}</span>
+              {(() => {
+                const iconMap: Record<string, React.ReactNode> = {
+                  tip:   <Lightbulb  style={{ width: 14, height: 14, color: "#f59e0b", flexShrink: 0 }} strokeWidth={1.75} />,
+                  up:    <TrendingUp style={{ width: 14, height: 14, color: "#10b981", flexShrink: 0 }} strokeWidth={1.75} />,
+                  down:  <TrendingDown style={{ width: 14, height: 14, color: "#f43f5e", flexShrink: 0 }} strokeWidth={1.75} />,
+                  chart: <BarChart2  style={{ width: 14, height: 14, color: "#6366f1", flexShrink: 0 }} strokeWidth={1.75} />,
+                };
+                return iconMap[ins.icon] ?? <Lightbulb style={{ width: 14, height: 14, flexShrink: 0 }} strokeWidth={1.75} />;
+              })()}
               <div>
                 <p style={{ color: FG.textPrimary, fontSize: 11, fontWeight: 600 }}>{ins.title}</p>
                 <p style={{ color: FG.labelMuted, fontSize: 10, marginTop: 2 }}>{ins.desc}</p>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
-import { Check, Pencil, Trash2, GripVertical, Zap } from "lucide-react";
+import { Check, Pencil, Trash2, GripVertical } from "lucide-react";
+import { CatIcon } from "@/lib/categoryIcons";
 
 interface TimeBlockProps {
   block: TimeBlockData;
@@ -202,7 +203,7 @@ export function TimeBlock({
                        transition-transform duration-150 group-hover:scale-[1.04]"
             style={{ background: cat.color, color: cat.accent }}
           >
-            <span className="text-[9px]">{cat.icon}</span>
+            <CatIcon cat={block.cat} className="w-2.5 h-2.5" strokeWidth={2} />
             {block.cat}
           </span>
         </div>

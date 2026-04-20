@@ -1,5 +1,6 @@
 import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
 import { CheckCircle2, Clock3, TrendingUp } from "lucide-react";
+import { CatIcon } from "@/lib/categoryIcons";
 import { useEffect, useRef, useState } from "react";
 
 interface StatsBarProps {
@@ -179,7 +180,7 @@ export function StatsBar({ blocks, completed, categories }: StatsBarProps) {
                            cursor-default transition-all duration-200 hover:scale-105 animate-stagger"
                 style={{ background: c.color, color: c.accent, animationDelay: `${idx * 40}ms` }}
               >
-                <span>{c.icon}</span>
+                <CatIcon cat={cat} className="w-3 h-3" strokeWidth={2} />
                 <span>{cat}</span>
                 <span className="opacity-50">·</span>
                 <span>{hours}h</span>

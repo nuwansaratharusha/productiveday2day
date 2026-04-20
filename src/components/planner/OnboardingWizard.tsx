@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Sun, Target, Coffee, ArrowRight, ArrowLeft, Check, Briefcase, Zap } from "lucide-react";
+import { Sun, Target, Coffee, ArrowRight, ArrowLeft, Check, Briefcase, Zap,
+  GraduationCap, TrendingUp, Clapperboard, Palette, Code2,
+  FlaskConical, BarChart2, HeartPulse, Scale, BookMarked, Building2,
+  Megaphone, Handshake, ShoppingBag, LayoutDashboard, Flame, Video,
+  PenLine, Music, Layers, Settings2, Package, Sparkles, LineChart,
+  Brain, Phone, Sunrise, Clock, Moon, Sunset, LucideIcon,
+} from "lucide-react";
 
 // ─── Data types ───────────────────────────────────────────────
 export type Profession = "student" | "employee" | "entrepreneur" | "creator" | "freelancer" | "developer";
@@ -25,63 +31,63 @@ interface OnboardingWizardProps {
 
 // ─── Step content definitions ─────────────────────────────────
 
-const PROFESSIONS: { value: Profession; label: string; desc: string; icon: string }[] = [
-  { value: "student",       label: "Student",             desc: "Courses, assignments, exams & learning",     icon: "🎓" },
-  { value: "employee",      label: "Professional",        desc: "9-to-5, team meetings, corporate work",      icon: "💼" },
-  { value: "entrepreneur",  label: "Entrepreneur",        desc: "Building a business, revenue, growth",       icon: "🚀" },
-  { value: "creator",       label: "Content Creator",     desc: "Videos, posts, brand deals, audience",       icon: "🎬" },
-  { value: "freelancer",    label: "Freelancer",          desc: "Client projects, proposals, billing",        icon: "🎨" },
-  { value: "developer",     label: "Developer / Engineer",desc: "Coding, PRs, architecture, shipping",        icon: "💻" },
+const PROFESSIONS: { value: Profession; label: string; desc: string; Icon: LucideIcon }[] = [
+  { value: "student",       label: "Student",              desc: "Courses, assignments, exams & learning",    Icon: GraduationCap },
+  { value: "employee",      label: "Professional",         desc: "9-to-5, team meetings, corporate work",     Icon: Briefcase },
+  { value: "entrepreneur",  label: "Entrepreneur",         desc: "Building a business, revenue, growth",      Icon: TrendingUp },
+  { value: "creator",       label: "Content Creator",      desc: "Videos, posts, brand deals, audience",      Icon: Clapperboard },
+  { value: "freelancer",    label: "Freelancer",           desc: "Client projects, proposals, billing",       Icon: Palette },
+  { value: "developer",     label: "Developer / Engineer", desc: "Coding, PRs, architecture, shipping",       Icon: Code2 },
 ];
 
-const INDUSTRIES: Record<Profession, { value: string; label: string; icon: string }[]> = {
+const INDUSTRIES: Record<Profession, { value: string; label: string; Icon: LucideIcon }[]> = {
   student: [
-    { value: "stem",         label: "STEM / Sciences",          icon: "🔬" },
-    { value: "business_edu", label: "Business / Economics",     icon: "📊" },
-    { value: "arts",         label: "Arts & Humanities",        icon: "🎭" },
-    { value: "medicine",     label: "Medicine / Health",        icon: "🏥" },
-    { value: "law",          label: "Law",                      icon: "⚖️" },
-    { value: "other_edu",    label: "Other",                    icon: "📚" },
+    { value: "stem",         label: "STEM / Sciences",          Icon: FlaskConical },
+    { value: "business_edu", label: "Business / Economics",     Icon: BarChart2 },
+    { value: "arts",         label: "Arts & Humanities",        Icon: Palette },
+    { value: "medicine",     label: "Medicine / Health",        Icon: HeartPulse },
+    { value: "law",          label: "Law",                      Icon: Scale },
+    { value: "other_edu",    label: "Other",                    Icon: BookMarked },
   ],
   employee: [
-    { value: "tech",         label: "Technology",               icon: "💻" },
-    { value: "finance",      label: "Finance & Banking",        icon: "🏦" },
-    { value: "marketing",    label: "Marketing & Sales",        icon: "📣" },
-    { value: "healthcare",   label: "Healthcare",               icon: "🏥" },
-    { value: "consulting",   label: "Consulting",               icon: "🤝" },
-    { value: "other_emp",    label: "Other",                    icon: "🏢" },
+    { value: "tech",         label: "Technology",               Icon: Code2 },
+    { value: "finance",      label: "Finance & Banking",        Icon: LineChart },
+    { value: "marketing",    label: "Marketing & Sales",        Icon: Megaphone },
+    { value: "healthcare",   label: "Healthcare",               Icon: HeartPulse },
+    { value: "consulting",   label: "Consulting",               Icon: Handshake },
+    { value: "other_emp",    label: "Other",                    Icon: Building2 },
   ],
   entrepreneur: [
-    { value: "saas",         label: "SaaS / Tech Startup",      icon: "⚡" },
-    { value: "ecommerce",    label: "E-commerce / Retail",      icon: "🛒" },
-    { value: "agency",       label: "Agency / Services",        icon: "🏢" },
-    { value: "hospitality",  label: "Hospitality / F&B",        icon: "🍽️" },
-    { value: "real_estate",  label: "Real Estate",              icon: "🏠" },
-    { value: "other_ent",    label: "Other",                    icon: "🚀" },
+    { value: "saas",         label: "SaaS / Tech Startup",      Icon: LayoutDashboard },
+    { value: "ecommerce",    label: "E-commerce / Retail",      Icon: ShoppingBag },
+    { value: "agency",       label: "Agency / Services",        Icon: Handshake },
+    { value: "hospitality",  label: "Hospitality / F&B",        Icon: Sparkles },
+    { value: "real_estate",  label: "Real Estate",              Icon: Building2 },
+    { value: "other_ent",    label: "Other",                    Icon: Zap },
   ],
   creator: [
-    { value: "youtube",      label: "YouTube / Video",          icon: "📹" },
-    { value: "instagram",    label: "Instagram / TikTok",       icon: "📸" },
-    { value: "podcast",      label: "Podcast / Audio",          icon: "🎙️" },
-    { value: "writing",      label: "Blog / Newsletter",        icon: "✍️" },
-    { value: "music",        label: "Music / Production",       icon: "🎵" },
-    { value: "other_cr",     label: "Other",                    icon: "🎬" },
+    { value: "youtube",      label: "YouTube / Video",          Icon: Video },
+    { value: "instagram",    label: "Instagram / TikTok",       Icon: Flame },
+    { value: "podcast",      label: "Podcast / Audio",          Icon: Megaphone },
+    { value: "writing",      label: "Blog / Newsletter",        Icon: PenLine },
+    { value: "music",        label: "Music / Production",       Icon: Music },
+    { value: "other_cr",     label: "Other",                    Icon: Clapperboard },
   ],
   freelancer: [
-    { value: "design_fl",    label: "Graphic / UI Design",      icon: "🎨" },
-    { value: "dev_fl",       label: "Web / App Development",    icon: "💻" },
-    { value: "copy",         label: "Copywriting / Content",    icon: "✍️" },
-    { value: "video_fl",     label: "Video / Photography",      icon: "📹" },
-    { value: "consult_fl",   label: "Consulting / Coaching",    icon: "🤝" },
-    { value: "other_fl",     label: "Other",                    icon: "🎨" },
+    { value: "design_fl",    label: "Graphic / UI Design",      Icon: Palette },
+    { value: "dev_fl",       label: "Web / App Development",    Icon: Code2 },
+    { value: "copy",         label: "Copywriting / Content",    Icon: PenLine },
+    { value: "video_fl",     label: "Video / Photography",      Icon: Video },
+    { value: "consult_fl",   label: "Consulting / Coaching",    Icon: Handshake },
+    { value: "other_fl",     label: "Other",                    Icon: Layers },
   ],
   developer: [
-    { value: "frontend",     label: "Frontend / Mobile",        icon: "🖥️" },
-    { value: "backend",      label: "Backend / APIs",           icon: "⚙️" },
-    { value: "fullstack",    label: "Full-Stack",               icon: "💻" },
-    { value: "devops",       label: "DevOps / Cloud",           icon: "☁️" },
-    { value: "ai_ml",        label: "AI / ML / Data",           icon: "🤖" },
-    { value: "other_dev",    label: "Other",                    icon: "💻" },
+    { value: "frontend",     label: "Frontend / Mobile",        Icon: Layers },
+    { value: "backend",      label: "Backend / APIs",           Icon: Settings2 },
+    { value: "fullstack",    label: "Full-Stack",               Icon: Code2 },
+    { value: "devops",       label: "DevOps / Cloud",           Icon: Package },
+    { value: "ai_ml",        label: "AI / ML / Data",           Icon: Brain },
+    { value: "other_dev",    label: "Other",                    Icon: Code2 },
   ],
 };
 
@@ -89,23 +95,23 @@ const WAKE_PRESETS = [
   "05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30",
 ];
 
-const WORK_HOURS_OPTIONS: { value: WorkHours; label: string; desc: string; icon: string }[] = [
-  { value: "early",    label: "Early Bird",   desc: "Work starts around 7–8 AM",   icon: "🌅" },
-  { value: "standard", label: "Standard",     desc: "9 AM – 5 PM typical day",     icon: "☀️" },
-  { value: "flexible", label: "Flexible",     desc: "Start around 10–11 AM",       icon: "🕙" },
-  { value: "night",    label: "Night Shift",  desc: "Afternoon to evening focus",  icon: "🌙" },
+const WORK_HOURS_OPTIONS: { value: WorkHours; label: string; desc: string; Icon: LucideIcon }[] = [
+  { value: "early",    label: "Early Bird",   desc: "Work starts around 7–8 AM",   Icon: Sunrise },
+  { value: "standard", label: "Standard",     desc: "9 AM – 5 PM typical day",     Icon: Sun },
+  { value: "flexible", label: "Flexible",     desc: "Start around 10–11 AM",       Icon: Clock },
+  { value: "night",    label: "Night Shift",  desc: "Afternoon to evening focus",  Icon: Moon },
 ];
 
-const PRODUCTIVITY_OPTS: { value: Productivity; label: string; desc: string; icon: string }[] = [
-  { value: "morning",   label: "Morning",   desc: "Best before noon",            icon: "🌅" },
-  { value: "afternoon", label: "Afternoon", desc: "Peak energy 1–5 PM",          icon: "☀️" },
-  { value: "evening",   label: "Evening",   desc: "Hit stride after 6 PM",       icon: "🌆" },
+const PRODUCTIVITY_OPTS: { value: Productivity; label: string; desc: string; Icon: LucideIcon }[] = [
+  { value: "morning",   label: "Morning",   desc: "Best before noon",            Icon: Sunrise },
+  { value: "afternoon", label: "Afternoon", desc: "Peak energy 1–5 PM",          Icon: Sun },
+  { value: "evening",   label: "Evening",   desc: "Hit stride after 6 PM",       Icon: Sunset },
 ];
 
-const WORK_TYPES: { value: WorkType; label: string; desc: string; icon: string }[] = [
-  { value: "deep",     label: "Deep Work",     desc: "Long focused sessions, no interruptions",   icon: "🧠" },
-  { value: "meetings", label: "Meeting Heavy", desc: "Lots of calls, client sessions, standups",  icon: "📞" },
-  { value: "mixed",    label: "Mixed",         desc: "Balance of focus and collaborative time",   icon: "⚡" },
+const WORK_TYPES: { value: WorkType; label: string; desc: string; Icon: LucideIcon }[] = [
+  { value: "deep",     label: "Deep Work",     desc: "Long focused sessions, no interruptions",   Icon: Brain },
+  { value: "meetings", label: "Meeting Heavy", desc: "Lots of calls, client sessions, standups",  Icon: Phone },
+  { value: "mixed",    label: "Mixed",         desc: "Balance of focus and collaborative time",   Icon: Zap },
 ];
 
 const GOAL_OPTIONS = [
@@ -144,10 +150,10 @@ function fmt12(val: string) {
 
 // ─── Reusable card option ─────────────────────────────────────
 function OptionCard({
-  selected, onClick, icon, label, desc, small,
+  selected, onClick, Icon, label, desc, small,
 }: {
   selected: boolean; onClick: () => void;
-  icon: string; label: string; desc?: string; small?: boolean;
+  Icon: LucideIcon; label: string; desc?: string; small?: boolean;
 }) {
   return (
     <button
@@ -161,7 +167,13 @@ function OptionCard({
           : "border-border bg-background hover:bg-muted/30",
       ].join(" ")}
     >
-      <span className={small ? "text-xl flex-shrink-0" : "text-2xl flex-shrink-0"}>{icon}</span>
+      <div className={[
+        "flex items-center justify-center rounded-lg flex-shrink-0",
+        small ? "w-8 h-8" : "w-10 h-10",
+        selected ? "bg-primary/15" : "bg-muted/60",
+      ].join(" ")}>
+        <Icon className={small ? "w-4 h-4 text-primary" : "w-5 h-5 text-primary"} strokeWidth={1.75} />
+      </div>
       <div className="flex-1 min-w-0">
         <div className={["font-semibold text-foreground leading-snug", small ? "text-xs" : "text-sm"].join(" ")}>
           {label}
@@ -279,7 +291,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     key={p.value}
                     selected={data.profession === p.value}
                     onClick={() => setData(d => ({ ...d, profession: p.value, industry: "" }))}
-                    icon={p.icon} label={p.label} desc={p.desc}
+                    Icon={p.Icon} label={p.label} desc={p.desc}
                   />
                 ))}
               </div>
@@ -299,7 +311,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     key={ind.value}
                     selected={data.industry === ind.value}
                     onClick={() => setData(d => ({ ...d, industry: ind.value }))}
-                    icon={ind.icon} label={ind.label} small
+                    Icon={ind.Icon} label={ind.label} small
                   />
                 ))}
               </div>
@@ -352,7 +364,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       key={w.value}
                       selected={data.workHours === w.value}
                       onClick={() => setData(d => ({ ...d, workHours: w.value }))}
-                      icon={w.icon} label={w.label} desc={w.desc} small
+                      Icon={w.Icon} label={w.label} desc={w.desc} small
                     />
                   ))}
                 </div>
@@ -376,7 +388,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       key={p.value}
                       selected={data.productivity === p.value}
                       onClick={() => setData(d => ({ ...d, productivity: p.value }))}
-                      icon={p.icon} label={p.label} desc={p.desc} small
+                      Icon={p.Icon} label={p.label} desc={p.desc} small
                     />
                   ))}
                 </div>
@@ -390,7 +402,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       key={w.value}
                       selected={data.workType === w.value}
                       onClick={() => setData(d => ({ ...d, workType: w.value }))}
-                      icon={w.icon} label={w.label} desc={w.desc} small
+                      Icon={w.Icon} label={w.label} desc={w.desc} small
                     />
                   ))}
                 </div>

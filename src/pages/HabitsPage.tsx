@@ -2,7 +2,8 @@
 // ProductiveDay — Habits Tracker Page  +  Don't-Do List
 // =============================================================
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Flame, CheckCircle2, Circle, Trophy, Target, X, Check, ShieldOff, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Flame, CheckCircle2, Circle, Trophy, Target, X, Check, ShieldOff, AlertTriangle, ChevronDown, ChevronUp, LucideIcon } from "lucide-react";
+import { HABIT_ICONS, HABIT_ICON_KEYS, DONT_DO_ICONS, type HabitIconKey } from "@/lib/categoryIcons";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { cn } from "@/lib/utils";
@@ -38,11 +39,11 @@ interface DontDoItem {
 
 const DONTDO_KEY = "pd-dontdo";
 
-const DONT_CATEGORIES: { value: DontDoCategory; label: string; color: string; bg: string; emoji: string }[] = [
-  { value: "health",       label: "Health",       color: "#f43f5e", bg: "bg-rose-500/10",   emoji: "🚫" },
-  { value: "productivity", label: "Focus",        color: "#3b82f6", bg: "bg-blue-500/10",   emoji: "🧠" },
-  { value: "mindset",      label: "Mindset",      color: "#a855f7", bg: "bg-purple-500/10", emoji: "💭" },
-  { value: "social",       label: "Social",       color: "#f59e0b", bg: "bg-amber-500/10",  emoji: "🤝" },
+const DONT_CATEGORIES: { value: DontDoCategory; label: string; color: string; bg: string; Icon: LucideIcon }[] = [
+  { value: "health",       label: "Health",       color: "#f43f5e", bg: "bg-rose-500/10",   Icon: DONT_DO_ICONS.health },
+  { value: "productivity", label: "Focus",        color: "#3b82f6", bg: "bg-blue-500/10",   Icon: DONT_DO_ICONS.productivity },
+  { value: "mindset",      label: "Mindset",      color: "#a855f7", bg: "bg-purple-500/10", Icon: DONT_DO_ICONS.mindset },
+  { value: "social",       label: "Social",       color: "#f59e0b", bg: "bg-amber-500/10",  Icon: DONT_DO_ICONS.social },
 ];
 
 function getCatMeta(cat: DontDoCategory) {
@@ -79,7 +80,7 @@ const COLORS = [
   { label: "Yellow", value: "#eab308" },
 ];
 
-const ICONS = ["💪","🏃","📚","💧","🧘","🛌","🥗","✍️","🎯","🎸","🌿","🧠"];
+const ICONS = HABIT_ICON_KEYS;
 
 // ─── StreakRing ───────────────────────────────────────────────
 function StreakRing({ pct, color, size = 64 }: { pct: number; color: string; size?: number }) {
@@ -117,7 +118,10 @@ function HabitCard({ habit, onToggle, onDelete }: {
     )}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2.5">
-          <span className="text-2xl">{habit.icon}</span>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+               style={{ background: habit.color + "20" }}>
+            {(() => { const I = HABIT_ICONS[habit.icon as HabitIconKey]; return I ? <I className="w-4.5 h-4.5" style={{ color: habit.color }} strokeWidth={1.75} /> : <Target className="w-4.5 h-4.5" style={{ color: habit.color }} />; })()}
+          </div>
           <div>
             <div className="text-sm font-semibold text-foreground leading-tight">{habit.title}</div>
             {habit.description && (
@@ -178,7 +182,7 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [color, setColor] = useState(COLORS[0].value);
-  const [icon, setIcon] = useState(ICONS[0]);
+  const [icon, setIcon] = useState<HabitIconKey>(ICONS[0]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end">
@@ -219,16 +223,21 @@ function AddHabitSheet({ onAdd, onClose }: { onAdd: (h: Partial<Habit>) => void;
           <div>
             <div className="text-[11px] text-muted-foreground mb-1.5 font-medium">Icon</div>
             <div className="flex flex-wrap gap-1.5">
-              {ICONS.map((ic) => (
-                <button
-                  key={ic}
-                  onClick={() => setIcon(ic)}
-                  className={cn(
-                    "w-9 h-9 rounded-lg text-lg flex items-center justify-center border transition-all",
-                    icon === ic ? "border-primary/60 bg-primary/10" : "border-border/30 hover:border-border/60"
-                  )}
-                >{ic}</button>
-              ))}
+              {ICONS.map((ic) => {
+                const IconComp = HABIT_ICONS[ic];
+                return (
+                  <button
+                    key={ic}
+                    onClick={() => setIcon(ic)}
+                    className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center border transition-all",
+                      icon === ic ? "border-primary/60 bg-primary/10 text-primary" : "border-border/30 hover:border-border/60 text-muted-foreground"
+                    )}
+                  >
+                    <IconComp className="w-4 h-4" strokeWidth={1.75} />
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -321,7 +330,7 @@ function AddDontDoSheet({ onAdd, onClose }: {
                   )}
                   style={cat === c.value ? { backgroundColor: c.color, borderColor: c.color } : {}}
                 >
-                  <span>{c.emoji}</span>
+                  {(() => { const I = c.Icon; return <I className="w-3 h-3" strokeWidth={2} />; })()}
                   {c.label}
                 </button>
               ))}
@@ -369,7 +378,8 @@ function DontDoCard({ item, onSlip, onDelete }: {
             className="mt-0.5 flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full"
             style={{ backgroundColor: meta.color + "20", color: meta.color }}
           >
-            {meta.emoji} {meta.label}
+            {(() => { const I = meta.Icon; return <I className="w-2.5 h-2.5 inline mr-0.5" strokeWidth={2} />; })()}
+            {meta.label}
           </span>
         </div>
         <button

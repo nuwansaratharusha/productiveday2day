@@ -16,18 +16,18 @@ export interface Category {
 const CATEGORIES_KEY = "zip-planner-categories";
 
 export const DEFAULT_CATEGORIES: Record<string, Category> = {
-  Personal: { color: "hsl(46 100% 94%)", accent: "hsl(40 94% 56%)", icon: "☀" },
-  Learning: { color: "hsl(213 100% 94%)", accent: "hsl(213 77% 37%)", icon: "📖" },
-  Revenue: { color: "hsl(0 100% 95%)", accent: "hsl(0 77% 47%)", icon: "💰" },
-  Operations: { color: "hsl(280 100% 95%)", accent: "hsl(280 77% 35%)", icon: "⚙" },
-  Delivery: { color: "hsl(133 100% 95%)", accent: "hsl(133 77% 35%)", icon: "🔧" },
-  Product: { color: "hsl(187 100% 95%)", accent: "hsl(187 80% 28%)", icon: "🚀" },
-  "Side Projects": { color: "hsl(27 100% 94%)", accent: "hsl(27 100% 45%)", icon: "🎯" },
-  Branding: { color: "hsl(340 100% 95%)", accent: "hsl(340 72% 39%)", icon: "✦" },
-  CIM: { color: "hsl(40 100% 94%)", accent: "hsl(27 100% 45%)", icon: "🎓" },
-  Health: { color: "hsl(133 100% 95%)", accent: "hsl(133 77% 35%)", icon: "💪" },
-  Creative: { color: "hsl(280 100% 95%)", accent: "hsl(280 77% 35%)", icon: "🎨" },
-  Networking: { color: "hsl(187 100% 95%)", accent: "hsl(187 80% 28%)", icon: "🤝" },
+  Personal:        { color: "hsl(46 100% 94%)",  accent: "hsl(40 94% 56%)",   icon: "sun" },
+  Learning:        { color: "hsl(213 100% 94%)", accent: "hsl(213 77% 37%)",  icon: "book" },
+  Revenue:         { color: "hsl(0 100% 95%)",   accent: "hsl(0 77% 47%)",    icon: "trending-up" },
+  Operations:      { color: "hsl(280 100% 95%)", accent: "hsl(280 77% 35%)",  icon: "settings" },
+  Delivery:        { color: "hsl(133 100% 95%)", accent: "hsl(133 77% 35%)",  icon: "package" },
+  Product:         { color: "hsl(187 100% 95%)", accent: "hsl(187 80% 28%)",  icon: "layers" },
+  "Side Projects": { color: "hsl(27 100% 94%)",  accent: "hsl(27 100% 45%)",  icon: "zap" },
+  Branding:        { color: "hsl(340 100% 95%)", accent: "hsl(340 72% 39%)",  icon: "sparkles" },
+  CIM:             { color: "hsl(40 100% 94%)",  accent: "hsl(27 100% 45%)",  icon: "graduation" },
+  Health:          { color: "hsl(133 100% 95%)", accent: "hsl(133 77% 35%)",  icon: "heart" },
+  Creative:        { color: "hsl(280 100% 95%)", accent: "hsl(280 77% 35%)",  icon: "palette" },
+  Networking:      { color: "hsl(187 100% 95%)", accent: "hsl(187 80% 28%)",  icon: "users" },
 };
 
 export function loadCategories(): Record<string, Category> {
