@@ -389,7 +389,19 @@ export default function Index() {
 
           <div className="flex items-center gap-2">
             {/* Google Calendar sync */}
-            <GoogleCalendarSync />
+            <GoogleCalendarSync
+              onConnected={() => {
+                // Sync today's existing blocks immediately after connecting
+                if (blocks.length > 0) {
+                  syncBlocksToCalendar(blocks, selectedDate).catch(() => {});
+                }
+              }}
+              onSyncNow={() => {
+                if (blocks.length > 0) {
+                  syncBlocksToCalendar(blocks, selectedDate).catch(() => {});
+                }
+              }}
+            />
 
             {/* Bell: request notification permission if not yet granted */}
             {notifPermission !== "granted" && notifPermission !== "denied" && (
