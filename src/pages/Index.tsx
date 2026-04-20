@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Plus, Palette, RotateCcw, Bell } from "lucide-react";
+import { GoogleCalendarSync } from "@/components/planner/GoogleCalendarSync";
+import {
+  getCalToken,
+  syncBlocksToCalendar,
+  setEventComplete,
+  deleteCalendarEvent,
+} from "@/lib/googleCalendar";
 import { useNavContext } from "@/lib/context/NavContext";
 import { MigrationBanner } from "@/lib/migration/MigrationBanner";
 import { useDragReorder } from "@/hooks/useDragReorder";
@@ -180,12 +187,16 @@ export default function Index() {
     setNotifPermission(result);
   }, []);
 
-  // AI planner: atomically replace the day's blocks — no duplicates possible
+  // AI planner: atomically replace the day's blocks — no duplicates possible.
+  // After Supabase confirms the inserts (real UUIDs returned), sync to Google Calendar.
   const handleAISaveBlocks = useCallback(
-    async (blocks: TimeBlockData[]) => {
-      await replaceDayBlocks(blocks);
+    async (incomingBlocks: TimeBlockData[]) => {
+      const savedBlocks = await replaceDayBlocks(incomingBlocks);
+      if (getCalToken() && savedBlocks.length > 0) {
+        syncBlocksToCalendar(savedBlocks, selectedDate).catch(() => {});
+      }
     },
-    [replaceDayBlocks],
+    [replaceDayBlocks, selectedDate],
   );
 
   // AI planner: user taps "Open Planner" → transition
@@ -211,6 +222,19 @@ export default function Index() {
     saveCategories(cats);
     updateCategoriesRef(cats);
   };
+
+  // Wrap toggleComplete to also update Google Calendar event status
+  const handleToggleComplete = useCallback(
+    (blockId: string) => {
+      const block = blocks.find((b) => b.id === blockId);
+      const currentlyDone = !!completed[blockId];
+      toggleComplete(blockId);
+      if (block && getCalToken()) {
+        setEventComplete(blockId, block.block, !currentlyDone).catch(() => {});
+      }
+    },
+    [blocks, completed, toggleComplete],
+  );
 
   const activeIndex = selectedDay === defaultDay ? getCurrentTimeBlock(blocks) : -1;
   const activeBlock = activeIndex >= 0 ? blocks[activeIndex] : null;
@@ -252,6 +276,8 @@ export default function Index() {
   };
 
   const handleDelete = (id: string) => {
+    // Delete from Google Calendar if connected (best-effort, non-blocking)
+    if (getCalToken()) deleteCalendarEvent(id).catch(() => {});
     // Keep times as-is after deletion (don't cascade recalculate)
     updateBlocks(blocks.filter((b) => b.id !== id));
   };
@@ -361,7 +387,10 @@ export default function Index() {
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            {/* Google Calendar sync */}
+            <GoogleCalendarSync />
+
             {/* Bell: request notification permission if not yet granted */}
             {notifPermission !== "granted" && notifPermission !== "denied" && (
               <Button
@@ -405,7 +434,7 @@ export default function Index() {
                 isDragging={dragState.dragIndex === i}
                 isDropTarget={dragState.dropIndex === i}
                 dropPosition={dragState.dropIndex === i ? dragState.dropPosition : null}
-                onToggle={() => toggleComplete(block.id)}
+                onToggle={() => handleToggleComplete(block.id)}
                 onEdit={() => { setEditingBlock(block); setDialogOpen(true); }}
                 onDelete={() => handleDelete(block.id)}
                 onDragStart={handleDragStart(i)}

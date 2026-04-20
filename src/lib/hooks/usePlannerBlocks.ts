@@ -78,8 +78,8 @@ export interface UsePlannerBlocksReturn {
   hasAnyBlocks: boolean;
   loading: boolean;
   saveBlocks: (newBlocks: TimeBlockData[]) => Promise<void>;
-  /** AI chat: atomically replace ALL blocks for the day — no duplicates possible */
-  replaceDayBlocks: (newBlocks: TimeBlockData[]) => Promise<void>;
+  /** AI chat: atomically replace ALL blocks for the day. Returns the saved blocks with real DB UUIDs. */
+  replaceDayBlocks: (newBlocks: TimeBlockData[]) => Promise<TimeBlockData[]>;
   toggleComplete: (blockId: string) => Promise<void>;
   bulkCreate: (schedule: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }) => Promise<void>;
   clearAllBlocks: () => Promise<void>;
@@ -359,8 +359,8 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
   // Used by AI chat: atomically wipe today's blocks and insert fresh.
   // Avoids all rowIdsRef timing issues — no stale state possible.
   const replaceDayBlocks = useCallback(
-    async (newBlocks: TimeBlockData[]) => {
-      if (!user) return;
+    async (newBlocks: TimeBlockData[]): Promise<TimeBlockData[]> => {
+      if (!user) return [];
       suppressRealtimeRef.current = true;
 
       // 1. Delete every existing planner block for this specific date
@@ -374,7 +374,7 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
         setBlocks([]);
         rowIdsRef.current = new Set();
         setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
-        return;
+        return [];
       }
 
       // 2. Insert all new blocks in one batch
@@ -386,15 +386,18 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
         .insert(inserts)
         .select("id, title, description, estimated_minutes, tags, status, completed_at, sort_order");
 
+      setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
+
       if (inserted) {
         const mapped = inserted.map(taskToBlock);
         setBlocks(mapped);
         setCompleted({});
         setHasAnyBlocks(true);
         rowIdsRef.current = new Set(inserted.map((t) => t.id));
+        return mapped; // ← Return blocks with real DB UUIDs for calendar sync
       }
 
-      setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
+      return [];
     },
     [user, supabase, selectedDate]
   );
