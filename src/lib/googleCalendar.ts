@@ -100,27 +100,34 @@ export function disconnectGoogleCalendar() {
 }
 
 // ── Time parser ───────────────────────────────────────────────
-// Converts "9:00 AM – 10:30 AM" + "2026-04-20" → ISO datetime strings
+// Handles both formats produced by makeRange():
+//   "7:00–8:00 AM"     (same-period — AM/PM only on end)
+//   "10:45 AM–12:15 PM" (cross-period — AM/PM on both)
 
 function parseBlockTimes(
   timeStr: string,
   dateStr: string,
 ): { start: string; end: string } | null {
-  const parts = timeStr.split(/[–—]/);
+  // Split on en-dash, em-dash, or regular hyphen (with optional surrounding spaces)
+  const parts = timeStr.split(/\s*[–—\-]\s*/);
   if (parts.length !== 2) return null;
 
-  const parseOne = (t: string): string | null => {
-    const m = t.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  // Extract period from end segment to use as fallback for start
+  const endPeriod = (parts[1].trim().match(/(AM|PM)\s*$/i)?.[1] ?? "").toUpperCase();
+
+  const parseOne = (t: string, fallbackPeriod: string): string | null => {
+    const m = t.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
     if (!m) return null;
     let h = parseInt(m[1]);
     const min = parseInt(m[2] ?? "0");
-    if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
-    if (m[3].toUpperCase() === "AM" && h === 12) h  = 0;
+    const period = (m[3] ?? fallbackPeriod).toUpperCase();
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h  = 0;
     return `${dateStr}T${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:00`;
   };
 
-  const start = parseOne(parts[0]);
-  const end   = parseOne(parts[1]);
+  const start = parseOne(parts[0], endPeriod);
+  const end   = parseOne(parts[1], endPeriod);
   return start && end ? { start, end } : null;
 }
 
@@ -181,6 +188,9 @@ export async function createCalendarEvent(
 ): Promise<void> {
   const times = parseBlockTimes(block.time, dateStr);
   if (!times) return; // Couldn't parse time — skip silently
+
+  // Already synced — don't create a duplicate
+  if (getEventId(block.id)) return;
 
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
