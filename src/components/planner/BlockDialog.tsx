@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
 import { Clock, Tag, AlignLeft, Timer } from "lucide-react";
+import { IconByKey } from "@/lib/categoryIcons";
 
 interface BlockDialogProps {
   open: boolean;
@@ -260,7 +261,8 @@ export function BlockDialog({
                         className="w-2 h-2 rounded-full flex-shrink-0"
                         style={{ background: catData.accent }}
                       />
-                      {catData.icon} {catName}
+                      <IconByKey iconKey={catData.icon} className="w-3 h-3" strokeWidth={2} />
+                      {catName}
                     </span>
                   </SelectItem>
                 ))}
@@ -271,7 +273,7 @@ export function BlockDialog({
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold mt-1"
                 style={{ background: selectedCat.color, color: selectedCat.accent }}
               >
-                {selectedCat.icon} {cat}
+                <IconByKey iconKey={selectedCat.icon} className="w-2.5 h-2.5" strokeWidth={2} /> {cat}
               </div>
             )}
           </div>

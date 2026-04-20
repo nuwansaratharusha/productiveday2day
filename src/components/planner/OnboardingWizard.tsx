@@ -114,21 +114,21 @@ const WORK_TYPES: { value: WorkType; label: string; desc: string; Icon: LucideIc
   { value: "mixed",    label: "Mixed",         desc: "Balance of focus and collaborative time",   Icon: Zap },
 ];
 
-const GOAL_OPTIONS = [
-  { value: "revenue",    label: "Revenue Growth",     icon: "💰" },
-  { value: "study",      label: "Study & Learning",   icon: "📚" },
-  { value: "health",     label: "Health & Fitness",   icon: "💪" },
-  { value: "creative",   label: "Creative Projects",  icon: "🎨" },
-  { value: "networking", label: "Networking",         icon: "🤝" },
-  { value: "personal",   label: "Personal Growth",    icon: "🌱" },
-  { value: "launch",     label: "Launch Something",   icon: "🚀" },
-  { value: "mindset",    label: "Mindset & Wellness", icon: "🧘" },
+const GOAL_OPTIONS: { value: string; label: string; Icon: LucideIcon }[] = [
+  { value: "revenue",    label: "Revenue Growth",     Icon: TrendingUp },
+  { value: "study",      label: "Study & Learning",   Icon: BookMarked },
+  { value: "health",     label: "Health & Fitness",   Icon: HeartPulse },
+  { value: "creative",   label: "Creative Projects",  Icon: Palette },
+  { value: "networking", label: "Networking",         Icon: Handshake },
+  { value: "personal",   label: "Personal Growth",    Icon: Sparkles },
+  { value: "launch",     label: "Launch Something",   Icon: Zap },
+  { value: "mindset",    label: "Mindset & Wellness", Icon: Brain },
 ];
 
-const BREAK_STYLES: { value: BreakStyle; label: string; desc: string; icon: string }[] = [
-  { value: "short",    label: "Short & Sharp",  desc: "15-min breaks every 2 sessions",    icon: "⚡" },
-  { value: "long",     label: "Deep Rest",      desc: "30-min breaks to fully recharge",   icon: "🧘" },
-  { value: "frequent", label: "Micro Breaks",   desc: "10-min breather every session",     icon: "🔄" },
+const BREAK_STYLES: { value: BreakStyle; label: string; desc: string; Icon: LucideIcon }[] = [
+  { value: "short",    label: "Short & Sharp",  desc: "15-min breaks every 2 sessions",    Icon: Zap },
+  { value: "long",     label: "Deep Rest",      desc: "30-min breaks to fully recharge",   Icon: Wind },
+  { value: "frequent", label: "Micro Breaks",   desc: "10-min breather every session",     Icon: Coffee },
 ];
 
 const STEPS = [
@@ -432,7 +432,9 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                           : "border-border bg-background hover:bg-muted/30",
                       ].join(" ")}
                     >
-                      <span className="text-xl flex-shrink-0">{g.icon}</span>
+                      <div className={["w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", sel ? "bg-primary/15" : "bg-muted/60"].join(" ")}>
+                        <g.Icon className="w-4 h-4 text-primary" strokeWidth={1.75} />
+                      </div>
                       <span className="text-xs font-semibold text-foreground leading-snug flex-1 min-w-0">{g.label}</span>
                       {sel && (
                         <div className="w-4 h-4 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
@@ -462,7 +464,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     key={b.value}
                     selected={data.breakStyle === b.value}
                     onClick={() => setData(d => ({ ...d, breakStyle: b.value }))}
-                    icon={b.icon} label={b.label} desc={b.desc}
+                    Icon={b.Icon} label={b.label} desc={b.desc}
                   />
                 ))}
               </div>

@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Palette } from "lucide-react";
 import { Category } from "@/data/plannerData";
-import { HABIT_ICONS, HABIT_ICON_KEYS, CatIcon } from "@/lib/categoryIcons";
+import { HABIT_ICONS, HABIT_ICON_KEYS, IconByKey } from "@/lib/categoryIcons";
 
 interface CategoryManagerProps {
   open: boolean;
@@ -77,10 +77,10 @@ export function CategoryManager({ open, onOpenChange, categories, onSave }: Cate
               className="flex items-center gap-2 p-2.5 rounded-xl border border-border bg-muted/20"
             >
               <span
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{ background: cat.color, color: cat.accent }}
               >
-                {cat.icon}
+                <IconByKey iconKey={cat.icon} className="w-4 h-4" strokeWidth={2} />
               </span>
               <span className="flex-1 text-sm font-semibold text-foreground">{name}</span>
               <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: cat.accent }} />

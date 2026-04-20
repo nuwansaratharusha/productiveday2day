@@ -6,6 +6,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Download, FileText, FileSpreadsheet, Lightbulb, TrendingUp, TrendingDown, BarChart2 } from "lucide-react";
+import { IconByKey } from "@/lib/categoryIcons";
 import {
   getTransactions, createTransaction, updateTransaction, deleteTransaction,
   CATEGORIES, getCategoryMeta,
@@ -694,7 +695,10 @@ function TxRow({ tx, onEdit, onDelete, currency }: {
           {tx.category && tx.category !== "Other" && (
             <>
               <span style={{ color: FG.txMetaText, fontSize: 10 }}>•</span>
-              <span style={{ color: FG.txMetaText, fontSize: 10 }}>{meta.icon} {tx.category}</span>
+              <span style={{ color: FG.txMetaText, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <IconByKey iconKey={meta.icon} className="w-2.5 h-2.5" strokeWidth={2} />
+                {tx.category}
+              </span>
             </>
           )}
           {tx.recurring && (
@@ -892,7 +896,7 @@ function TxFormDialog({ open, onOpenChange, editTx, defaultType, onSaved, curren
                 padding: "9px 12px", background: FG.cardBg,
                 display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box",
               }}>
-              <span style={{ fontSize: 14 }}>{catMeta.icon}</span>
+              <IconByKey iconKey={catMeta.icon} className="w-3.5 h-3.5" strokeWidth={1.75} />
               <span style={{ flex: 1, textAlign: "left", fontSize: 12, color: FG.txDescText }}>{category}</span>
               <svg style={{ transform: showCat ? "rotate(180deg)" : "none", transition: "0.15s" }}
                 width="10" height="10" viewBox="0 0 12 12" fill="none">
@@ -911,7 +915,7 @@ function TxFormDialog({ open, onOpenChange, editTx, defaultType, onSaved, curren
                       color: category === c.key ? "#2761d8" : FG.navText,
                       cursor: "pointer",
                     }}>
-                    <span style={{ fontSize: 14 }}>{c.icon}</span>
+                    <IconByKey iconKey={c.icon} className="w-4 h-4" strokeWidth={1.75} />
                     <span style={{ lineHeight: 1.2, textAlign: "center" }}>{c.key}</span>
                   </button>
                 ))}

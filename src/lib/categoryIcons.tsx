@@ -147,3 +147,54 @@ export function CatIcon({ cat, className = "w-3.5 h-3.5", strokeWidth = 1.75 }: 
   const Icon = CATEGORY_ICONS[cat] ?? Zap;
   return <Icon className={className} strokeWidth={strokeWidth} />;
 }
+
+// ─── Icon key → Lucide component (for stored string keys) ────
+// Maps the icon key strings stored in plannerData / localStorage
+// back to their Lucide components for rendering.
+
+export const ICON_KEY_MAP: Record<string, LucideIcon> = {
+  // Category keys
+  sun:          Sun,
+  book:         BookOpen,
+  "trending-up": TrendingUp,
+  settings:     Settings2,
+  package:      Package,
+  layers:       Layers,
+  zap:          Zap,
+  sparkles:     Sparkles,
+  graduation:   GraduationCap,
+  heart:        Heart,
+  palette:      Palette,
+  users:        Users,
+  target:       Target,
+  microscope:   Microscope,
+  // Finance category keys
+  briefcase:    Briefcase,
+  video:        Video,
+  handshake:    Handshake,
+  "bar-chart":  BarChart2,
+  building:     Building2,
+  // Habit keys (same names)
+  dumbbell:     Dumbbell,
+  activity:     Activity,
+  droplets:     Droplets,
+  wind:         Wind,
+  moon:         Moon,
+  leaf:         Leaf,
+  pen:          PenLine,
+  music:        Music,
+  brain:        Brain,
+  flame:        Flame,
+};
+
+interface IconByKeyProps {
+  iconKey: string;
+  className?: string;
+  strokeWidth?: number;
+}
+
+/** Renders a Lucide icon from a stored string key (e.g. "sun", "book"). Falls back to Zap. */
+export function IconByKey({ iconKey, className = "w-4 h-4", strokeWidth = 1.75 }: IconByKeyProps) {
+  const Icon = ICON_KEY_MAP[iconKey] ?? Zap;
+  return <Icon className={className} strokeWidth={strokeWidth} />;
+}

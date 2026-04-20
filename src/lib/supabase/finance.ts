@@ -36,28 +36,28 @@ export type TransactionUpdate = Partial<Omit<Transaction, "id" | "user_id" | "cr
 // ─── Categories ───────────────────────────────────────────────
 
 export const CATEGORIES = [
-  { key: "Business",      icon: "💼", color: "#6366F1" },
-  { key: "Creator",       icon: "🎬", color: "#A78BFA" },
-  { key: "Salary",        icon: "💵", color: "#4ADE80" },
-  { key: "Freelance",     icon: "🧑‍💻", color: "#34D399" },
-  { key: "Brand Deal",    icon: "🤝", color: "#2DD4BF" },
-  { key: "Ad Revenue",    icon: "📈", color: "#60A5FA" },
-  { key: "Housing",       icon: "🏠", color: "#FB923C" },
-  { key: "Food",          icon: "🍔", color: "#F97316" },
-  { key: "Transport",     icon: "🚗", color: "#FACC15" },
-  { key: "Subscriptions", icon: "🔄", color: "#F472B6" },
-  { key: "Health",        icon: "🏥", color: "#F87171" },
-  { key: "Tools",         icon: "🛠", color: "#94A3B8" },
-  { key: "Entertainment", icon: "🎮", color: "#C084FC" },
-  { key: "Savings",       icon: "🏦", color: "#86EFAC" },
-  { key: "Personal",      icon: "👤", color: "#64748B" },
-  { key: "Other",         icon: "📦", color: "#94A3B8" },
+  { key: "Business",      icon: "briefcase",   color: "#6366F1" },
+  { key: "Creator",       icon: "video",       color: "#A78BFA" },
+  { key: "Salary",        icon: "trending-up", color: "#4ADE80" },
+  { key: "Freelance",     icon: "zap",         color: "#34D399" },
+  { key: "Brand Deal",    icon: "handshake",   color: "#2DD4BF" },
+  { key: "Ad Revenue",    icon: "bar-chart",   color: "#60A5FA" },
+  { key: "Housing",       icon: "building",    color: "#FB923C" },
+  { key: "Food",          icon: "leaf",        color: "#F97316" },
+  { key: "Transport",     icon: "activity",    color: "#FACC15" },
+  { key: "Subscriptions", icon: "layers",      color: "#F472B6" },
+  { key: "Health",        icon: "heart",       color: "#F87171" },
+  { key: "Tools",         icon: "settings",    color: "#94A3B8" },
+  { key: "Entertainment", icon: "music",       color: "#C084FC" },
+  { key: "Savings",       icon: "target",      color: "#86EFAC" },
+  { key: "Personal",      icon: "sun",         color: "#64748B" },
+  { key: "Other",         icon: "package",     color: "#94A3B8" },
 ] as const;
 
 export type CategoryKey = typeof CATEGORIES[number]["key"];
 
 export function getCategoryMeta(key: string) {
-  return CATEGORIES.find(c => c.key === key) ?? { key, icon: "📦", color: "#94A3B8" };
+  return CATEGORIES.find(c => c.key === key) ?? { key, icon: "package", color: "#94A3B8" };
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────
