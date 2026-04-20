@@ -67,9 +67,10 @@ function ArcRing({ pct, size = 96 }: { pct: number; size?: number }) {
         }}
       />
       <defs>
+        {/* Use CSS custom properties so the gradient respects light/dark mode */}
         <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="hsl(14 90% 52%)" />
-          <stop offset="100%" stopColor="hsl(356 85% 50%)" />
+          <stop offset="0%"   style={{ stopColor: "hsl(var(--zip-orange))" }} />
+          <stop offset="100%" style={{ stopColor: "hsl(var(--zip-red))"    }} />
         </linearGradient>
       </defs>
     </svg>
@@ -105,15 +106,7 @@ export function StatsBar({ blocks, completed, categories }: StatsBarProps) {
           <div className="relative flex-shrink-0 w-[88px] h-[88px] flex items-center justify-center">
             <ArcRing pct={pct} size={88} />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span
-                className="text-2xl font-extrabold tabular-nums leading-none"
-                style={{
-                  background: "linear-gradient(135deg, hsl(14 90% 48%), hsl(356 85% 46%))",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
+              <span className="text-2xl font-extrabold tabular-nums leading-none text-gradient-brand">
                 {animatedPct}
               </span>
               <span className="text-[9px] text-muted-foreground font-semibold mt-0.5">%</span>
