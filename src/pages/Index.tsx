@@ -79,7 +79,7 @@ export default function Index() {
 
   const {
     blocks, completed, hasAnyBlocks, loading,
-    saveBlocks, toggleComplete, bulkCreate, clearAllBlocks,
+    saveBlocks, replaceDayBlocks, toggleComplete, bulkCreate, clearAllBlocks,
   } = usePlannerBlocks(selectedDate);
 
   // ── Onboarding / AI chat state ────────────────────────────────
@@ -180,12 +180,12 @@ export default function Index() {
     setNotifPermission(result);
   }, []);
 
-  // AI planner: save blocks for today's date, keep chat open
+  // AI planner: atomically replace the day's blocks — no duplicates possible
   const handleAISaveBlocks = useCallback(
     async (blocks: TimeBlockData[]) => {
-      await saveBlocks(blocks);
+      await replaceDayBlocks(blocks);
     },
-    [saveBlocks],
+    [replaceDayBlocks],
   );
 
   // AI planner: user taps "Open Planner" → transition

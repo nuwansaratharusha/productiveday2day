@@ -78,6 +78,8 @@ export interface UsePlannerBlocksReturn {
   hasAnyBlocks: boolean;
   loading: boolean;
   saveBlocks: (newBlocks: TimeBlockData[]) => Promise<void>;
+  /** AI chat: atomically replace ALL blocks for the day — no duplicates possible */
+  replaceDayBlocks: (newBlocks: TimeBlockData[]) => Promise<void>;
   toggleComplete: (blockId: string) => Promise<void>;
   bulkCreate: (schedule: { weekday: TimeBlockData[]; weekend: TimeBlockData[] }) => Promise<void>;
   clearAllBlocks: () => Promise<void>;
@@ -353,6 +355,50 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
     rowIdsRef.current = new Set();
   }, [user, supabase]);
 
+  // ── replaceDayBlocks ───────────────────────────────────────
+  // Used by AI chat: atomically wipe today's blocks and insert fresh.
+  // Avoids all rowIdsRef timing issues — no stale state possible.
+  const replaceDayBlocks = useCallback(
+    async (newBlocks: TimeBlockData[]) => {
+      if (!user) return;
+      suppressRealtimeRef.current = true;
+
+      // 1. Delete every existing planner block for this specific date
+      await supabase
+        .from("tasks")
+        .delete()
+        .eq("user_id", user.id)
+        .contains("tags", [PLANNER_TAG, selectedDate]);
+
+      if (newBlocks.length === 0) {
+        setBlocks([]);
+        rowIdsRef.current = new Set();
+        setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
+        return;
+      }
+
+      // 2. Insert all new blocks in one batch
+      const inserts = newBlocks.map((block, i) =>
+        blockToInsert(block, selectedDate, i, user.id)
+      );
+      const { data: inserted } = await supabase
+        .from("tasks")
+        .insert(inserts)
+        .select("id, title, description, estimated_minutes, tags, status, completed_at, sort_order");
+
+      if (inserted) {
+        const mapped = inserted.map(taskToBlock);
+        setBlocks(mapped);
+        setCompleted({});
+        setHasAnyBlocks(true);
+        rowIdsRef.current = new Set(inserted.map((t) => t.id));
+      }
+
+      setTimeout(() => { suppressRealtimeRef.current = false; }, 1500);
+    },
+    [user, supabase, selectedDate]
+  );
+
   const hasBlocks = blocks.length > 0;
 
   return {
@@ -362,6 +408,7 @@ export function usePlannerBlocks(selectedDate: string): UsePlannerBlocksReturn {
     hasAnyBlocks,
     loading,
     saveBlocks,
+    replaceDayBlocks,
     toggleComplete,
     bulkCreate,
     clearAllBlocks,
