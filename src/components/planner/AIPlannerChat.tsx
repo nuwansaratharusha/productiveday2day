@@ -338,19 +338,19 @@ export function AIPlannerChat({ onSaveBlocks, onViewPlanner, onUseClassic, dateL
 
       {/* ── Input area ──────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 border-t border-border/40 bg-background/95 backdrop-blur-xl px-4 pt-3"
-        style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+        className="flex-shrink-0 bg-background/95 backdrop-blur-xl px-3 pt-2"
+        style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
       >
-        {planReady && (
-          <p className="text-[11px] text-muted-foreground text-center mb-2">
-            Refine your plan or{" "}
-            <button onClick={onViewPlanner} className="text-primary font-semibold hover:underline">
-              open the planner →
-            </button>
-          </p>
-        )}
+        {/* Integrated input card */}
+        <div className={[
+          "flex items-end gap-0 rounded-2xl border bg-card transition-all duration-200",
+          "shadow-[0_2px_16px_0_rgb(0_0_0/0.07)]",
+          input.trim()
+            ? "border-primary/40 shadow-[0_2px_20px_0_hsl(14_90%_48%/0.12)]"
+            : "border-border/50",
+        ].join(" ")}>
 
-        <div className="flex gap-2 items-end">
+          {/* Textarea */}
           <textarea
             ref={inputRef}
             value={input}
@@ -358,40 +358,56 @@ export function AIPlannerChat({ onSaveBlocks, onViewPlanner, onUseClassic, dateL
             onKeyDown={handleKeyDown}
             placeholder={
               planReady
-                ? "Adjust the plan, e.g. \"Move client work to afternoon\""
-                : "Tell me your tasks, projects and goals for today…"
+                ? "Adjust your plan — e.g. move client work to afternoon…"
+                : "Describe your tasks, meetings and goals for today…"
             }
             rows={1}
             disabled={loading}
-            className="flex-1 resize-none rounded-2xl border border-border/60 bg-muted/20
-                       px-4 py-3 text-[14px] text-foreground placeholder:text-muted-foreground/60
-                       outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary/40
-                       min-h-[46px] max-h-[120px] overflow-y-auto transition-all
+            className="flex-1 resize-none bg-transparent px-4 py-3.5
+                       text-[14px] text-foreground placeholder:text-muted-foreground/50
+                       outline-none min-h-[50px] max-h-[130px] overflow-y-auto
                        disabled:opacity-50 leading-relaxed"
           />
-          <button
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
-            className="w-11 h-11 rounded-2xl gradient-brand text-white flex items-center justify-center
-                       shadow-brand hover:shadow-brand-lg active:scale-95 disabled:opacity-40
-                       transition-all flex-shrink-0"
-            aria-label="Send"
-          >
-            {loading
-              ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              : <Send className="w-4 h-4" />}
-          </button>
+
+          {/* Send button — flush inside the card */}
+          <div className="flex-shrink-0 p-2">
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className={[
+                "w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200",
+                input.trim() && !loading
+                  ? "gradient-brand text-white shadow-brand active:scale-90"
+                  : "bg-muted/60 text-muted-foreground/40",
+              ].join(" ")}
+              aria-label="Send"
+            >
+              {loading
+                ? <span className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                : <Send className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
 
-        {!planReady && (
-          <button
-            onClick={onUseClassic}
-            className="w-full text-center text-[11px] text-muted-foreground/60
-                       hover:text-muted-foreground transition mt-2.5 py-1"
-          >
-            Set up manually without AI →
-          </button>
-        )}
+        {/* Footer hint */}
+        <div className="flex items-center justify-center mt-2 min-h-[20px]">
+          {planReady ? (
+            <button
+              onClick={onViewPlanner}
+              className="text-[11px] text-muted-foreground hover:text-foreground transition"
+            >
+              Refine your plan or{" "}
+              <span className="text-primary font-semibold">open the planner →</span>
+            </button>
+          ) : (
+            <button
+              onClick={onUseClassic}
+              className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition"
+            >
+              Set up manually without AI →
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
