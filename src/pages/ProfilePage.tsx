@@ -6,6 +6,7 @@ import {
   Bell, Zap, Clock, Wallet, Link2, FileText, LogOut,
   ChevronRight, Check, Pencil, Target, Calendar, Sparkles,
   Sun, Moon, Monitor, Heart, X, Minus, Plus, Download,
+  Gift, Copy, Share2, Users, Star,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -191,6 +192,9 @@ export default function ProfilePage() {
   const [nameInput, setNameInput] = useState("");
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [goalInput, setGoalInput] = useState(6);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [referralCount, setReferralCount] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   // Derived stats
   const daysTracked = useMemo(() => getDaysTracked(), []);
@@ -217,6 +221,52 @@ export default function ProfilePage() {
       setLoading(false);
     });
   }, [user, supabase]);
+
+  // Derive referral code from user ID (no DB write needed)
+  const referralCode = useMemo(() => {
+    if (!user?.id) return "";
+    return user.id.replace(/-/g, "").slice(0, 8).toUpperCase();
+  }, [user]);
+
+  const referralUrl = useMemo(() => {
+    if (!referralCode) return "";
+    const base = typeof window !== "undefined" ? window.location.origin : "https://productiveday2day-gold.vercel.app";
+    return `${base}/signup?ref=${referralCode}`;
+  }, [referralCode]);
+
+  // Fetch referral count when invite sheet opens
+  useEffect(() => {
+    if (!inviteOpen || !user) return;
+    supabase
+      .from("referrals")
+      .select("id", { count: "exact", head: true })
+      .eq("referrer_id", user.id)
+      .then(({ count }) => setReferralCount(count ?? 0));
+  }, [inviteOpen, user, supabase]);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(referralUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy — please copy manually");
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join me on ProductiveDay",
+          text: "I've been using ProductiveDay to stay focused. Sign up with my link and we both get 7 days Pro free!",
+          url: referralUrl,
+        });
+      } catch { /* user cancelled */ }
+    } else {
+      handleCopyLink();
+    }
+  };
 
   const save = async (patch?: Partial<typeof profile>) => {
     if (!user) return;
@@ -426,6 +476,12 @@ export default function ProfilePage() {
           {/* Account */}
           <SettingsGroup title="Account" items={[
             {
+              Icon: Gift, color: "#f43f5e", label: "Invite friends",
+              meta: referralCount > 0 ? `${referralCount} joined` : "Get 7 days Pro",
+              chevron: true,
+              onClick: () => setInviteOpen(true),
+            },
+            {
               Icon: Wallet, color: "#10b981", label: "Billing",
               meta: "Free plan", chevron: true,
               onClick: () => toast("You're on the Free plan. Upgrade options coming soon!"),
@@ -452,6 +508,193 @@ export default function ProfilePage() {
           ProductiveDay · v2.0.0
         </div>
       </div>
+
+      {/* ── Invite Friends Sheet ───────────────────────────── */}
+      {inviteOpen && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 50,
+            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+          onClick={() => setInviteOpen(false)}
+        >
+          <div
+            style={{
+              width: "100%", maxWidth: 480,
+              background: "var(--background)", borderRadius: "24px 24px 0 0",
+              overflow: "hidden",
+              boxShadow: "0 -12px 40px rgba(0,0,0,0.2)",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Gradient hero */}
+            <div style={{
+              background: "linear-gradient(135deg, #f43f5e, #ec4899, #a855f7)",
+              padding: "28px 20px 24px",
+              position: "relative",
+            }}>
+              {/* Close */}
+              <button
+                onClick={() => setInviteOpen(false)}
+                style={{
+                  position: "absolute", top: 14, right: 14,
+                  width: 28, height: 28, borderRadius: 8,
+                  background: "rgba(255,255,255,0.2)", border: "none",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "white",
+                }}
+              >
+                <X size={14} strokeWidth={2.5} />
+              </button>
+
+              {/* Icon + heading */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: 18,
+                  background: "rgba(255,255,255,0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  marginBottom: 12,
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3)",
+                }}>
+                  <Gift size={26} color="white" strokeWidth={1.8} />
+                </div>
+                <div style={{ color: "white", fontWeight: 800, fontSize: 20, letterSpacing: "-0.5px" }}>
+                  Invite friends, earn Pro
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
+                  Share your link — both you and your friend<br />get <strong style={{ color: "white" }}>7 days Pro free</strong> when they sign up
+                </div>
+              </div>
+
+              {/* Reward pills */}
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 16 }}>
+                {["You get 7 days Pro", "Friend gets 7 days Pro"].map((label, i) => (
+                  <div key={i} style={{
+                    padding: "5px 12px", borderRadius: 20,
+                    background: "rgba(255,255,255,0.18)",
+                    color: "white", fontSize: 11, fontWeight: 600,
+                    display: "flex", alignItems: "center", gap: 5,
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}>
+                    <Star size={10} fill="white" strokeWidth={0} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: "20px 20px 36px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+              {/* Referral link box */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--muted-foreground)", marginBottom: 8 }}>
+                  Your referral link
+                </div>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 0,
+                  border: "1.5px solid var(--border)", borderRadius: 12, overflow: "hidden",
+                  background: "var(--card)",
+                }}>
+                  <span style={{
+                    flex: 1, padding: "11px 14px", fontSize: 12, fontWeight: 500,
+                    color: "var(--muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    fontFamily: "JetBrains Mono, monospace",
+                  }}>
+                    {referralUrl}
+                  </span>
+                  <button
+                    onClick={handleCopyLink}
+                    style={{
+                      padding: "11px 16px", border: "none", borderLeft: "1.5px solid var(--border)",
+                      background: copied ? "rgba(34,197,94,0.08)" : "var(--muted)",
+                      cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                      color: copied ? "#22c55e" : "var(--foreground)",
+                      fontWeight: 600, fontSize: 12, whiteSpace: "nowrap",
+                      transition: "background .2s, color .2s",
+                    }}
+                  >
+                    {copied ? <Check size={13} strokeWidth={2.5} /> : <Copy size={13} strokeWidth={2} />}
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Share button */}
+              <button
+                onClick={handleNativeShare}
+                style={{
+                  width: "100%", height: 46, borderRadius: 14, border: "none",
+                  background: "linear-gradient(135deg, #f43f5e, #a855f7)",
+                  color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  boxShadow: "0 4px 18px rgba(244,63,94,0.35)",
+                }}
+              >
+                <Share2 size={16} strokeWidth={2.2} />
+                Share with friends
+              </button>
+
+              {/* Stats card */}
+              <div style={{
+                display: "flex", gap: 10,
+                padding: "14px 16px",
+                background: "var(--card)", borderRadius: 14,
+                border: "1.5px solid var(--border)",
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: "rgba(244,63,94,0.1)", color: "#f43f5e",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Users size={17} strokeWidth={2} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>
+                    {referralCount} {referralCount === 1 ? "friend" : "friends"} joined
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+                    {referralCount > 0
+                      ? `${referralCount * 7} days Pro earned — nice work! 🎉`
+                      : "Share your link to start earning Pro days"}
+                  </div>
+                </div>
+              </div>
+
+              {/* How it works */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--muted-foreground)", marginBottom: 10 }}>
+                  How it works
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[
+                    { n: "1", label: "Share your unique link with friends" },
+                    { n: "2", label: "Friend signs up using your link" },
+                    { n: "3", label: "Both of you unlock 7 days Pro free" },
+                  ].map(step => (
+                    <div key={step.n} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{
+                        width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                        background: "linear-gradient(135deg, #f43f5e22, #a855f722)",
+                        color: "#f43f5e", fontWeight: 800, fontSize: 12,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        border: "1px solid rgba(244,63,94,0.2)",
+                      }}>
+                        {step.n}
+                      </div>
+                      <span style={{ fontSize: 13, color: "var(--foreground)", fontWeight: 500 }}>
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Daily Goal Dialog ──────────────────────────────── */}
       {goalDialogOpen && (
