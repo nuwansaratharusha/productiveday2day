@@ -947,16 +947,30 @@ function TxFormDialog({ open, onOpenChange, editTx, defaultType, onSaved, curren
             </div>
             <button onClick={() => setRecurring(v => !v)}
               style={{
-                width: 42, height: 24, borderRadius: 12, transition: "background 0.15s",
-                background: recurring ? FG.analyzeBg : FG.cardBorder,
-                position: "relative", flexShrink: 0, border: "none",
+                width: 52, height: 30, borderRadius: 999, flexShrink: 0,
+                background: recurring ? "#22c55e" : "#d1d5db",
+                position: "relative", border: "none", cursor: "pointer", outline: "none",
+                boxShadow: recurring ? "0 2px 10px rgba(34,197,94,0.4)" : "0 1px 3px rgba(0,0,0,0.1)",
+                transition: "background .22s, box-shadow .22s",
               }}>
               <span style={{
-                position: "absolute", top: 2, width: 20, height: 20, borderRadius: 10,
-                background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                transition: "transform 0.15s",
-                transform: recurring ? "translateX(20px)" : "translateX(2px)",
-              }} />
+                position: "absolute", top: 3,
+                left: recurring ? 25 : 3,
+                width: 24, height: 24, borderRadius: "50%",
+                background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.22)",
+                transition: "left .2s cubic-bezier(.4,0,.2,1)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {recurring ? (
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 6.5l2.8 2.8L10 3.5" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ) : (
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 2l6 6M8 2l-6 6" stroke="#9ca3af" strokeWidth="1.6" strokeLinecap="round"/>
+                  </svg>
+                )}
+              </span>
             </button>
           </div>
           {recurring && (
