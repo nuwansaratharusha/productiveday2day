@@ -53,18 +53,36 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
     <button
       onClick={onToggle}
       style={{
-        width: 40, height: 24, borderRadius: 999, flexShrink: 0,
-        background: on ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "var(--toggle-off,#d1d5db)",
+        width: 52, height: 30, borderRadius: 999, flexShrink: 0,
+        background: on ? "#22c55e" : "#d1d5db",
         position: "relative", border: "none", cursor: "pointer", outline: "none",
-        boxShadow: on ? "0 2px 8px rgba(99,102,241,0.35)" : "none",
-        transition: "background .2s, box-shadow .2s",
+        boxShadow: on ? "0 2px 10px rgba(34,197,94,0.4)" : "0 1px 3px rgba(0,0,0,0.1)",
+        transition: "background .22s, box-shadow .22s",
       }}
     >
+      {/* Thumb */}
       <div style={{
-        position: "absolute", top: 3, left: on ? 19 : 3, width: 18, height: 18,
-        borderRadius: "50%", background: "white", boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
-        transition: "left .18s cubic-bezier(.4,0,.2,1)",
-      }} />
+        position: "absolute", top: 3,
+        left: on ? 25 : 3,
+        width: 24, height: 24,
+        borderRadius: "50%",
+        background: "white",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.22)",
+        transition: "left .2s cubic-bezier(.4,0,.2,1)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {on ? (
+          /* Checkmark */
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2 6.5l2.8 2.8L10 3.5" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        ) : (
+          /* X */
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+            <path d="M2 2l6 6M8 2l-6 6" stroke="#9ca3af" strokeWidth="1.6" strokeLinecap="round"/>
+          </svg>
+        )}
+      </div>
     </button>
   );
 }
