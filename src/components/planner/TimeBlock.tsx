@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
-import { Check, Pencil, Trash2, GripVertical } from "lucide-react";
+import { Check, Pencil, Trash2, GripVertical, Zap } from "lucide-react";
 import { CatIcon } from "@/lib/categoryIcons";
 
 interface TimeBlockProps {
