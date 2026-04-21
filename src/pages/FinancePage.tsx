@@ -973,13 +973,13 @@ function TxFormDialog({ open, onOpenChange, editTx, defaultType, onSaved, curren
           )}
 
           {/* Submit */}
-          <button onClick={handleSave} disabled={saving || !amount || !title.trim()}
+          <button onClick={handleSave} disabled={saving || !amount}
             style={{
               width: "100%", height: 42, borderRadius: 8, border: "none",
               background: isCredit ? FG.amountGreen : FG.amountRed,
               color: "#fff", fontSize: 13, fontWeight: 600,
-              opacity: (saving || !amount || !title.trim()) ? 0.5 : 1,
-              cursor: (saving || !amount || !title.trim()) ? "not-allowed" : "pointer",
+              opacity: (saving || !amount) ? 0.5 : 1,
+              cursor: (saving || !amount) ? "not-allowed" : "pointer",
             }}>
             {saving ? t("saving") : editTx ? t("updateEntry") : isCredit ? t("addCashIn") : t("addCashOut")}
           </button>

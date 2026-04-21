@@ -5,11 +5,12 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Bell, Zap, Clock, Wallet, Link2, FileText, LogOut,
   ChevronRight, Check, Pencil, Target, Calendar, Sparkles,
-  Sun, Moon, Monitor, Heart,
+  Sun, Moon, Monitor, Heart, X, Minus, Plus, Download,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -96,18 +97,20 @@ interface RowItem {
 }
 
 function SettingsRow({ item, isLast }: { item: RowItem; isLast: boolean }) {
+  // For toggle-only rows the whole row taps the toggle; for chevron rows use onClick
+  const rowClick = item.onClick ?? (item.toggle !== undefined ? item.onToggle : undefined);
+  const isClickable = !!rowClick;
   return (
     <button
-      onClick={item.onClick}
-      disabled={!item.onClick && !item.onToggle}
+      onClick={rowClick}
       style={{
         display: "flex", alignItems: "center", gap: 12,
         padding: "12px 14px", width: "100%",
-        background: "none", border: "none", cursor: item.onClick ? "pointer" : "default",
+        background: "none", border: "none", cursor: isClickable ? "pointer" : "default",
         borderBottom: isLast ? "none" : "1px solid var(--row-sep,rgba(0,0,0,0.06))",
         transition: "background .15s",
       }}
-      className="hover:bg-muted/20 active:bg-muted/30"
+      className={isClickable ? "hover:bg-muted/20 active:bg-muted/30" : ""}
     >
       <Bucket color={item.color} Icon={item.Icon} />
       <span style={{
@@ -168,6 +171,8 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [goalInput, setGoalInput] = useState(6);
 
   // Derived stats
   const daysTracked = useMemo(() => getDaysTracked(), []);
@@ -177,17 +182,19 @@ export default function ProfilePage() {
     if (!user) return;
     supabase.from("profiles").select("*").eq("id", user.id).single().then(({ data }) => {
       if (data) {
+        const dailyGoal = data.daily_goal_hours || data.daily_goal_count || 6;
         setProfile(p => ({
           ...p,
           full_name: data.full_name || "",
           timezone: data.timezone || "UTC",
           theme: data.theme || "system",
           notification_enabled: data.notification_enabled ?? true,
-          daily_goal_hours: data.daily_goal_hours || data.daily_goal_count || 6,
+          daily_goal_hours: dailyGoal,
           accent_gradient: data.accent_gradient ?? true,
           clock_24h: data.clock_24h ?? false,
         }));
         setNameInput(data.full_name || "");
+        setGoalInput(dailyGoal);
       }
       setLoading(false);
     });
@@ -207,6 +214,24 @@ export default function ProfilePage() {
   };
 
   const handleSignOut = async () => { await signOut(); navigate("/login"); };
+
+  const handleExport = () => {
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("zip-planner-"));
+      const data: Record<string, unknown> = { profile, plannerDays: {} };
+      keys.forEach(k => {
+        try { data.plannerDays[k] = JSON.parse(localStorage.getItem(k) || "[]"); } catch { /* skip */ }
+      });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "productiveday-export.json"; a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Data exported!");
+    } catch {
+      toast.error("Export failed. Please try again.");
+    }
+  };
 
   const initials    = getInitials(profile.full_name, user?.email || "");
   const emailLine   = user?.email || "";
@@ -343,14 +368,17 @@ export default function ProfilePage() {
             {
               Icon: Sparkles, color: "#8b5cf6", label: "AI assistant · Atlas",
               meta: "Llama 3", chevron: true,
+              onClick: () => toast("AI assistant settings coming soon"),
             },
             {
               Icon: Target, color: "#10b981", label: "Daily focus goal",
               meta: `${profile.daily_goal_hours}h/day`, chevron: true,
+              onClick: () => { setGoalInput(profile.daily_goal_hours); setGoalDialogOpen(true); },
             },
             {
               Icon: Calendar, color: "#f59e0b", label: "Connected calendars",
               meta: "Google", chevron: true,
+              onClick: () => toast("Calendar integrations coming soon"),
             },
           ]} />
 
@@ -382,14 +410,17 @@ export default function ProfilePage() {
             {
               Icon: Wallet, color: "#10b981", label: "Billing",
               meta: "Free plan", chevron: true,
+              onClick: () => toast("You're on the Free plan. Upgrade options coming soon!"),
             },
             {
               Icon: Link2, color: "#3b82f6", label: "Integrations",
               meta: "1 active", chevron: true,
+              onClick: () => toast("Manage integrations coming soon"),
             },
             {
               Icon: FileText, color: "#8b5cf6", label: "Export data",
               chevron: true,
+              onClick: handleExport,
             },
             {
               Icon: LogOut, color: "#ef4444", label: "Sign out",
@@ -403,6 +434,112 @@ export default function ProfilePage() {
           ProductiveDay · v2.0.0
         </div>
       </div>
+
+      {/* ── Daily Goal Dialog ──────────────────────────────── */}
+      {goalDialogOpen && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 50,
+            background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+          onClick={() => setGoalDialogOpen(false)}
+        >
+          <div
+            style={{
+              width: "100%", maxWidth: 480,
+              background: "var(--background)", borderRadius: "20px 20px 0 0",
+              padding: "20px 20px 36px",
+              boxShadow: "0 -8px 32px rgba(0,0,0,0.18)",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 18px" }} />
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 17 }}>Daily focus goal</div>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+                  Set your target focus hours per day
+                </div>
+              </div>
+              <button
+                onClick={() => setGoalDialogOpen(false)}
+                style={{ width: 28, height: 28, borderRadius: 8, border: "none", background: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <X size={14} strokeWidth={2.2} />
+              </button>
+            </div>
+
+            {/* Stepper */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 24, marginBottom: 24 }}>
+              <button
+                onClick={() => setGoalInput(g => Math.max(1, g - 1))}
+                style={{
+                  width: 44, height: 44, borderRadius: 12, border: "1.5px solid var(--border)",
+                  background: "var(--card)", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Minus size={18} strokeWidth={2.2} />
+              </button>
+              <div style={{ textAlign: "center" }}>
+                <span style={{ fontWeight: 800, fontSize: 48, lineHeight: 1, color: "var(--foreground)" }}>
+                  {goalInput}
+                </span>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>hours / day</div>
+              </div>
+              <button
+                onClick={() => setGoalInput(g => Math.min(16, g + 1))}
+                style={{
+                  width: 44, height: 44, borderRadius: 12, border: "1.5px solid var(--border)",
+                  background: "var(--card)", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Plus size={18} strokeWidth={2.2} />
+              </button>
+            </div>
+
+            {/* Quick picks */}
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 24 }}>
+              {[4, 6, 8, 10].map(h => (
+                <button
+                  key={h}
+                  onClick={() => setGoalInput(h)}
+                  style={{
+                    padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
+                    border: "1.5px solid",
+                    borderColor: goalInput === h ? "#6366f1" : "var(--border)",
+                    background: goalInput === h ? "rgba(99,102,241,0.1)" : "var(--card)",
+                    color: goalInput === h ? "#6366f1" : "var(--muted-foreground)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {h}h
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                save({ daily_goal_hours: goalInput });
+                setGoalDialogOpen(false);
+                toast.success(`Goal set to ${goalInput}h/day`);
+              }}
+              style={{
+                width: "100%", height: 44, borderRadius: 12, border: "none",
+                background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer",
+                boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+              }}
+            >
+              Save goal
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
