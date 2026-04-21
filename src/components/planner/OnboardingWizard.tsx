@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sun, Target, Coffee, ArrowRight, ArrowLeft, Check, Briefcase, Zap,
+import { Sun, Target, Coffee, Wind, ArrowRight, ArrowLeft, Check, Briefcase, Zap,
   GraduationCap, TrendingUp, Clapperboard, Palette, Code2,
   FlaskConical, BarChart2, HeartPulse, Scale, BookMarked, Building2,
   Megaphone, Handshake, ShoppingBag, LayoutDashboard, Flame, Video,
