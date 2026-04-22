@@ -8,6 +8,21 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createClient } from "@/lib/supabase/client";
 
+async function getRedirectPath(supabase: ReturnType<typeof createClient>, userId: string) {
+  // If the profiles table has an `onboarded` flag, use it to decide destination
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("onboarded")
+      .eq("id", userId)
+      .maybeSingle();
+    if (data?.onboarded) return "/";
+  } catch {
+    // column may not exist yet — default to onboarding
+  }
+  return "/onboarding";
+}
+
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
 
@@ -15,10 +30,11 @@ export default function AuthCallbackPage() {
     const supabase = createClient();
 
     // onAuthStateChange fires once the session is ready
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
         subscription.unsubscribe();
-        navigate("/", { replace: true });
+        const dest = await getRedirectPath(supabase, session.user.id);
+        navigate(dest, { replace: true });
       } else if (event === "SIGNED_OUT") {
         subscription.unsubscribe();
         navigate("/login", { replace: true });
@@ -26,10 +42,11 @@ export default function AuthCallbackPage() {
     });
 
     // Also check if session is already established (handles page refresh edge case)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         subscription.unsubscribe();
-        navigate("/", { replace: true });
+        const dest = await getRedirectPath(supabase, session.user.id);
+        navigate(dest, { replace: true });
       }
     });
 

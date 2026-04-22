@@ -67,6 +67,7 @@ import IdeasVault from "./pages/creator/IdeasVault.tsx";
 import ContentPipeline from "./pages/creator/ContentPipeline.tsx";
 import ScriptEditor from "./pages/creator/ScriptEditor.tsx";
 import FinancePage from "./pages/FinancePage.tsx";
+import OnboardingPage from "./pages/OnboardingPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -84,6 +85,7 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/habits" element={<ProtectedRoute><HabitsPage /></ProtectedRoute>} />
               <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
