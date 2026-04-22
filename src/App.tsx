@@ -68,6 +68,8 @@ import ContentPipeline from "./pages/creator/ContentPipeline.tsx";
 import ScriptEditor from "./pages/creator/ScriptEditor.tsx";
 import FinancePage from "./pages/FinancePage.tsx";
 import OnboardingPage from "./pages/OnboardingPage.tsx";
+import OnboardingPersonalizePage from "./pages/OnboardingPersonalizePage.tsx";
+import AIChatPage from "./pages/AIChatPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +88,8 @@ const App = () => (
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+              <Route path="/onboarding/personalize" element={<ProtectedRoute><OnboardingPersonalizePage /></ProtectedRoute>} />
+              <Route path="/chat" element={<ProtectedRoute><AIChatPage /></ProtectedRoute>} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/habits" element={<ProtectedRoute><HabitsPage /></ProtectedRoute>} />
               <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
