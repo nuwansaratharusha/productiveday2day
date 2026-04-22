@@ -335,10 +335,13 @@ export default function Index() {
   }, [selectedDate]);
 
   if (mode === null) {
-    // Loading — show nothing (or a minimal skeleton)
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}>
+        <svg style={{ width: 28, height: 28, animation: "spin 0.8s linear infinite" }} viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="#f0f0f0" strokeWidth="3" />
+          <path d="M12 2a10 10 0 0110 10" stroke="#FF5C00" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -359,7 +362,7 @@ export default function Index() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div style={{ height: "100%", overflowY: "auto", background: "#fff" }}>
 
       {/* ── Focus Mode overlay (student + learning block) ─────── */}
       {focusActive && activeBlock && (
@@ -378,7 +381,7 @@ export default function Index() {
 
       <MigrationBanner />
 
-      <div className="max-w-2xl mx-auto px-4 pt-5 pb-24">
+      <div style={{ maxWidth: 700, margin: "0 auto", padding: "14px 24px 100px" }}>
 
         {/* Stats */}
         {loading ? (
@@ -422,24 +425,23 @@ export default function Index() {
         )}
 
         {/* Schedule section header */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <span className="text-[12px] font-bold text-foreground">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#111", fontFamily: `-apple-system,BlinkMacSystemFont,"Inter",sans-serif` }}>
               {isWeekend ? "Weekend" : "Weekday"}
-              <span className="text-muted-foreground font-medium ml-1.5">— {DAYS[selectedDay]}</span>
+              <span style={{ color: "#999", fontWeight: 400, marginLeft: 6 }}>— {DAYS[selectedDay]}</span>
             </span>
             {!loading && (
-              <span className="text-[11px] text-muted-foreground ml-2">
+              <span style={{ fontSize: 11, color: "#bbb", fontFamily: `-apple-system,BlinkMacSystemFont,"Inter",sans-serif` }}>
                 {blocks.length} blocks · {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             {/* Google Calendar sync */}
             <GoogleCalendarSync
               onConnected={() => {
-                // Sync today's existing blocks immediately after connecting
                 if (blocks.length > 0) {
                   syncBlocksToCalendar(blocks, selectedDate).catch(() => {});
                 }
@@ -451,7 +453,7 @@ export default function Index() {
               }}
             />
 
-            {/* Bell: request notification permission if not yet granted */}
+            {/* Bell */}
             {notifPermission !== "granted" && notifPermission !== "denied" && (
               <Button
                 size="sm" variant="ghost"
@@ -514,16 +516,37 @@ export default function Index() {
         {!loading && <DayActionsBar blocks={blocks} completed={completed} selectedDay={selectedDay} />}
       </div>
 
-      {/* Floating Add button */}
+      {/* ── Floating Add button ───────────────────────────── */}
       {!loading && (
         <button
           onClick={() => { setEditingBlock(null); setDialogOpen(true); }}
-          className="fixed bottom-24 right-4 z-40 w-12 h-12 rounded-2xl gradient-brand shadow-brand-lg
-                     flex items-center justify-center text-white transition-all duration-200
-                     hover:scale-105 active:scale-95 hover:shadow-brand"
           aria-label="Add block"
+          style={{
+            position: "fixed",
+            bottom: 28, right: 28,
+            zIndex: 40,
+            width: 50, height: 50,
+            borderRadius: "50%",
+            border: "none",
+            background: `linear-gradient(135deg, #FF8040, #FF5C00)`,
+            color: "#fff",
+            boxShadow: "0 4px 20px rgba(255,92,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+            transition: "transform 0.18s, box-shadow 0.18s",
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.09)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 28px rgba(255,92,0,0.55)";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(255,92,0,0.45)";
+          }}
+          onMouseDown={e => (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.95)"}
+          onMouseUp={e => (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.09)"}
         >
-          <Plus className="w-5 h-5" strokeWidth={2.5} />
+          <Plus style={{ width: 22, height: 22, strokeWidth: 2.5 }} />
         </button>
       )}
 

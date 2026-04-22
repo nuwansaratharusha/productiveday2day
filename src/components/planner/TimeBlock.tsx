@@ -1,28 +1,60 @@
+// =============================================================
+// ProductiveDay — Time Block Card (Figma redesign)
+//   - Drag dots handle (left)
+//   - 3 px coloured left accent border
+//   - Open-circle checkbox → fills on complete
+//   - Title (centre left) | bold start time + end + category pill (right)
+//   - Edit / delete on hover
+//   - All drag-and-drop events preserved
+// =============================================================
 import { useState } from "react";
 import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
-import { Check, Pencil, Trash2, GripVertical, Zap } from "lucide-react";
-import { CatIcon } from "@/lib/categoryIcons";
+import { Check, Pencil, Trash2, Zap } from "lucide-react";
+
+const ORANGE = "#FF5C00";
+const SANS   = `-apple-system, BlinkMacSystemFont, "Inter", sans-serif`;
 
 interface TimeBlockProps {
-  block: TimeBlockData;
-  index: number;
-  isActive: boolean;
-  completed: boolean;
-  onToggle: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  isDragging?: boolean;
+  block:        TimeBlockData;
+  index:        number;
+  isActive:     boolean;
+  completed:    boolean;
+  onToggle:     () => void;
+  onEdit:       () => void;
+  onDelete:     () => void;
+  isDragging?:  boolean;
   isDropTarget?: boolean;
   dropPosition?: "above" | "below" | null;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragEnd: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragLeave: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
+  onDragStart:  (e: React.DragEvent) => void;
+  onDragEnd:    (e: React.DragEvent) => void;
+  onDragOver:   (e: React.DragEvent) => void;
+  onDragLeave:  (e: React.DragEvent) => void;
+  onDrop:       (e: React.DragEvent) => void;
   onTouchStart: (e: React.TouchEvent) => void;
-  onTouchMove: (e: React.TouchEvent) => void;
-  onTouchEnd: (e: React.TouchEvent) => void;
-  categories?: Record<string, Category>;
+  onTouchMove:  (e: React.TouchEvent) => void;
+  onTouchEnd:   (e: React.TouchEvent) => void;
+  categories?:  Record<string, Category>;
+}
+
+// ── Drag handle: 6 dots in 2×3 grid ─────────────────────────
+function DragDots() {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(2, 4px)",
+      gridTemplateRows:    "repeat(3, 4px)",
+      gap: "2px 2px",
+      opacity: 0.3,
+    }}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} style={{
+          width: 3, height: 3,
+          borderRadius: "50%",
+          background: "#888",
+        }} />
+      ))}
+    </div>
+  );
 }
 
 export function TimeBlock({
@@ -33,14 +65,14 @@ export function TimeBlock({
   categories,
 }: TimeBlockProps) {
   const cats = categories || DEFAULT_CATEGORIES;
-  // Fallback to semantic tokens — no hardcoded colors
-  const cat = cats[block.cat] || {
-    color:  "hsl(var(--muted))",
-    accent: "hsl(var(--muted-foreground))",
+  const cat  = cats[block.cat] || {
+    color:  "#f5f5f5",
+    accent: "#888",
     icon:   "📌",
   };
 
   const [justCompleted, setJustCompleted] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   const handleToggle = () => {
     if (!completed) {
@@ -51,26 +83,36 @@ export function TimeBlock({
   };
 
   // Parse "9:00 AM – 10:00 AM" → start / end
-  const timeParts = block.time.split(/[–—]/);
+  const timeParts = block.time.split(/[–—-]/);
   const startTime = timeParts[0]?.trim() ?? "";
   const endTime   = timeParts[1]?.trim() ?? "";
 
   return (
     <div
-      className={[
-        "group relative flex items-stretch rounded-2xl overflow-hidden mb-2",
-        "bg-card border cursor-pointer select-none",
-        "transition-all duration-200 animate-stagger",
-        isDragging
-          ? "opacity-40 scale-[0.97] shadow-md"
-          : "hover:shadow-md hover:-translate-y-px",
-        isActive
-          ? "border-primary/30 shadow-[var(--shadow-active,0_0_0_1px_hsl(14_90%_48%_/_0.2),_0_4px_16px_0_hsl(14_90%_48%_/_0.12))]"
-          : "border-border/50 hover:border-border/80",
-        completed ? "opacity-55" : "",
-      ].join(" ")}
-      style={{ animationDelay: `${index * 45}ms` }}
+      style={{
+        position: "relative",
+        display: "flex",
+        alignItems: "stretch",
+        borderRadius: 12,
+        border: `1px solid ${isActive ? ORANGE + "44" : "#efefef"}`,
+        marginBottom: 8,
+        background: completed ? "#fafafa" : "#fff",
+        overflow: "hidden",
+        cursor: "pointer",
+        userSelect: "none",
+        transition: "all 0.2s",
+        opacity: isDragging ? 0.4 : 1,
+        transform: isDragging ? "scale(0.97)" : hovered ? "translateY(-1px)" : "none",
+        boxShadow: isActive
+          ? `0 0 0 1.5px ${ORANGE}33, 0 4px 18px ${ORANGE}14`
+          : hovered
+            ? "0 3px 12px rgba(0,0,0,0.07)"
+            : "none",
+        animationDelay: `${index * 45}ms`,
+      }}
       onClick={handleToggle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -78,94 +120,112 @@ export function TimeBlock({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      {/* Drop target indicators */}
+
+      {/* ── Drop target indicators ─────────────────────────── */}
       {isDropTarget && dropPosition === "above" && (
-        <div className="absolute -top-px left-4 right-4 h-0.5 gradient-brand rounded-full z-10 animate-scale-in" />
+        <div style={{
+          position: "absolute", top: -1, left: 16, right: 16,
+          height: 2, background: ORANGE,
+          borderRadius: 2, zIndex: 10,
+        }} />
       )}
       {isDropTarget && dropPosition === "below" && (
-        <div className="absolute -bottom-px left-4 right-4 h-0.5 gradient-brand rounded-full z-10 animate-scale-in" />
+        <div style={{
+          position: "absolute", bottom: -1, left: 16, right: 16,
+          height: 2, background: ORANGE,
+          borderRadius: 2, zIndex: 10,
+        }} />
       )}
 
-      {/* Active block: animated gradient wash + top stripe */}
+      {/* ── Active block: top stripe ──────────────────────── */}
       {isActive && (
-        <>
-          <div className="absolute inset-0 rounded-2xl animate-active-bg pointer-events-none" />
-          <div className="absolute top-0 left-0 right-0 h-[2px] gradient-brand animate-pulse-active" />
-        </>
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 2,
+          background: `linear-gradient(90deg, #FF8040, ${ORANGE})`,
+        }} />
       )}
 
-      {/* ── Left column: drag handle + accent bar ── */}
-      <div className="flex items-stretch">
-        {/* Drag handle */}
-        <div
-          className="flex items-center justify-center w-6 flex-shrink-0
-                     cursor-grab active:cursor-grabbing touch-none
-                     text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-        >
-          <GripVertical className="w-3 h-3" />
-        </div>
-
-        {/* Category accent bar */}
-        <div
-          className="w-[3px] flex-shrink-0 my-3 rounded-full transition-all duration-300"
-          style={{
-            background: cat.accent,
-            opacity:    completed ? 0.35 : 1,
-            boxShadow:  isActive ? `0 0 8px ${cat.accent}55` : "none",
-          }}
-        />
+      {/* ── Drag handle ───────────────────────────────────── */}
+      <div
+        style={{
+          width: 30, flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "grab",
+        }}
+        onClick={e => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <DragDots />
       </div>
 
-      {/* ── Main content ── */}
-      <div className="flex-1 flex items-center gap-3 px-3.5 py-3 min-w-0">
+      {/* ── Coloured accent border ────────────────────────── */}
+      <div style={{
+        width: 3, flexShrink: 0,
+        background: cat.accent,
+        margin: "10px 0",
+        borderRadius: 2,
+        opacity: completed ? 0.35 : 1,
+        transition: "opacity 0.3s",
+      }} />
 
-        {/* Checkbox */}
+      {/* ── Main content ──────────────────────────────────── */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        gap: 11,
+        padding: "12px 12px 12px 11px",
+        minWidth: 0,
+      }}>
+
+        {/* Open-circle checkbox */}
         <div
-          className={[
-            "w-[18px] h-[18px] rounded-md flex items-center justify-center flex-shrink-0",
-            "border-[1.5px] transition-all duration-300",
-            justCompleted ? "scale-110" : "",
-          ].join(" ")}
           style={{
-            borderColor: completed ? cat.accent : cat.accent + "60",
-            background:  completed ? cat.accent : "transparent",
-            boxShadow:   completed ? `0 2px 8px ${cat.accent}40` : "none",
+            width: 19, height: 19, borderRadius: "50%",
+            border: `1.5px solid ${completed ? cat.accent : "#d1d5db"}`,
+            background: completed ? cat.accent : "transparent",
+            flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.25s",
+            transform: justCompleted ? "scale(1.18)" : "scale(1)",
+            boxShadow: completed ? `0 2px 8px ${cat.accent}40` : "none",
           }}
+          onClick={e => { e.stopPropagation(); handleToggle(); }}
         >
           {completed && (
-            <Check className="w-2.5 h-2.5 text-white animate-check" strokeWidth={3} />
+            <Check style={{ width: 10, height: 10, color: "#fff" }} strokeWidth={3} />
           )}
         </div>
 
-        {/* ── Text ── */}
-        <div className="flex-1 min-w-0">
-          {/* Title row */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span
-              className={[
-                "font-semibold text-sm leading-snug transition-all duration-300",
-                completed ? "text-muted-foreground" : "text-card-foreground",
-              ].join(" ")}
-              style={
-                completed
-                  ? { textDecoration: "line-through", textDecorationColor: cat.accent + "70" }
-                  : {}
-              }
-            >
-              {block.block}
+        {/* Block title */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{
+              fontSize: 14, fontWeight: block.block ? 500 : 400,
+              color: completed ? "#aaa" : block.block ? "#111" : "#ccc",
+              textDecoration: completed ? "line-through" : "none",
+              transition: "all 0.25s",
+              fontFamily: SANS,
+              lineHeight: 1.4,
+            }}>
+              {block.block || "—"}
             </span>
 
             {/* NOW badge */}
             {isActive && (
-              <span className="relative inline-flex items-center gap-0.5
-                               text-[10px] bg-primary/10 text-primary
-                               px-1.5 py-0.5 rounded-full font-bold tracking-wider
-                               animate-pulse-active now-ring">
-                <Zap className="w-2.5 h-2.5" />
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                fontSize: 9, fontWeight: 700,
+                color: ORANGE,
+                background: ORANGE + "15",
+                padding: "2px 6px",
+                borderRadius: 20,
+                letterSpacing: "0.4px",
+                fontFamily: SANS,
+              }}>
+                <Zap style={{ width: 8, height: 8 }} />
                 NOW
               </span>
             )}
@@ -173,63 +233,105 @@ export function TimeBlock({
 
           {/* Description */}
           {block.desc && (
-            <p
-              className={[
-                "text-xs text-muted-foreground leading-snug truncate mt-0.5 transition-all duration-300",
-                completed ? "opacity-50" : "",
-              ].join(" ")}
-            >
+            <p style={{
+              fontSize: 11, color: "#999",
+              margin: "2px 0 0",
+              lineHeight: 1.4,
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+              textOverflow: "ellipsis",
+              fontFamily: SANS,
+              opacity: completed ? 0.5 : 1,
+            }}>
               {block.desc}
             </p>
           )}
         </div>
 
-        {/* ── Right column: time + category badge ── */}
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          {/* Time: start / end */}
-          <div className="text-right">
-            <div className="text-xs font-bold text-foreground tabular-nums leading-none">
-              {startTime}
-            </div>
-            <div className="text-[10px] text-muted-foreground tabular-nums mt-[3px] leading-none">
-              {endTime || `${block.dur}m`}
-            </div>
-          </div>
-
-          {/* Category badge */}
-          <span
-            className="inline-flex items-center gap-1 text-[10px] px-2 py-[3px]
-                       rounded-full font-semibold whitespace-nowrap leading-none
-                       transition-transform duration-150 group-hover:scale-[1.04]"
-            style={{ background: cat.color, color: cat.accent }}
-          >
-            <CatIcon cat={block.cat} className="w-2.5 h-2.5" strokeWidth={2} />
+        {/* ── Right: time + category pill ─────────────────── */}
+        <div style={{
+          display: "flex", flexDirection: "column",
+          alignItems: "flex-end", gap: 3, flexShrink: 0,
+        }}>
+          <span style={{
+            fontSize: 13, fontWeight: 700,
+            color: completed ? "#aaa" : "#111",
+            lineHeight: 1, fontFamily: SANS,
+          }}>
+            {startTime}
+          </span>
+          <span style={{
+            fontSize: 10, color: "#aaa",
+            lineHeight: 1, fontFamily: SANS,
+          }}>
+            {endTime || `${block.dur}m`}
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 500,
+            background: cat.color,
+            color: cat.accent,
+            padding: "2px 8px",
+            borderRadius: 20,
+            whiteSpace: "nowrap",
+            fontFamily: SANS,
+            marginTop: 1,
+          }}>
             {block.cat}
           </span>
         </div>
 
-        {/* ── Action buttons (visible on hover / focus) ── */}
+        {/* ── Edit / delete (hover) ──────────────────────── */}
         <div
-          className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100
-                     translate-x-1 group-hover:translate-x-0
-                     transition-all duration-150"
-          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "flex", flexDirection: "column", gap: 2,
+            opacity: hovered ? 1 : 0,
+            transform: hovered ? "translateX(0)" : "translateX(4px)",
+            transition: "all 0.15s",
+          }}
+          onClick={e => e.stopPropagation()}
         >
           <button
             onClick={onEdit}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground/40
-                       hover:text-foreground transition-all duration-150"
-            aria-label="Edit block"
+            style={{
+              width: 26, height: 26, borderRadius: 7, border: "none",
+              background: "transparent", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#aaa",
+              transition: "background 0.15s, color 0.15s",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "#f3f4f6";
+              (e.currentTarget as HTMLButtonElement).style.color = "#333";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.color = "#aaa";
+            }}
+            aria-label="Edit"
           >
-            <Pencil className="w-3 h-3" />
+            <Pencil style={{ width: 11, height: 11 }} />
           </button>
+
           <button
             onClick={onDelete}
-            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground/40
-                       hover:text-destructive transition-all duration-150"
-            aria-label="Delete block"
+            style={{
+              width: 26, height: 26, borderRadius: 7, border: "none",
+              background: "transparent", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#aaa",
+              transition: "background 0.15s, color 0.15s",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2";
+              (e.currentTarget as HTMLButtonElement).style.color = "#ef4444";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.color = "#aaa";
+            }}
+            aria-label="Delete"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 style={{ width: 11, height: 11 }} />
           </button>
         </div>
       </div>

@@ -8,6 +8,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { LayoutGrid, Flame, CalendarDays, User } from "lucide-react";
 import type { ReactNode } from "react";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 const ORANGE = "#FF5C00";
 
@@ -68,12 +69,32 @@ export function AppLayout({ children }: { children: ReactNode }) {
         borderBottom: "1px solid #e5e7eb",
         background: "#fff",
         zIndex: 50,
+        gap: 8,
       }}>
         <img src="/logo.svg" alt="Productive Day" width={28} height={28}
-          style={{ objectFit: "contain", marginRight: 10, flexShrink: 0 }} />
+          style={{ objectFit: "contain", marginRight: 6, flexShrink: 0 }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: "#111", letterSpacing: "-0.2px" }}>
           Productive Day
         </span>
+
+        {/* Breadcrumb: only on specific pages */}
+        {path === "/" && (
+          <>
+            <span style={{ fontSize: 13, color: "#d1d5db", marginLeft: 4 }}>›</span>
+            <span style={{ fontSize: 13, color: "#888", fontWeight: 500 }}>Planner</span>
+          </>
+        )}
+        {path === "/chat" && (
+          <>
+            <span style={{ fontSize: 13, color: "#d1d5db", marginLeft: 4 }}>›</span>
+            <span style={{ fontSize: 13, color: "#888", fontWeight: 500 }}>AI Chat</span>
+          </>
+        )}
+
+        {/* Spacer + user menu */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+          <UserMenu />
+        </div>
       </header>
 
       {/* ── Body ─────────────────────────────────────────────── */}

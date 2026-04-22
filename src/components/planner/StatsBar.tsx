@@ -1,59 +1,70 @@
-import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
-import { CheckCircle2, Clock3, TrendingUp } from "lucide-react";
-import { CatIcon } from "@/lib/categoryIcons";
+// =============================================================
+// ProductiveDay — Planner Stats Bar (Figma compact redesign)
+//   - Mini arc donut ring (56px)
+//   - "TODAY" label + "N of M blocks"
+//   - Orange progress bar with 4 percentage markers
+// =============================================================
 import { useEffect, useRef, useState } from "react";
+import { TimeBlockData, Category, DEFAULT_CATEGORIES } from "@/data/plannerData";
+
+const ORANGE = "#FF5C00";
+const SANS   = `-apple-system, BlinkMacSystemFont, "Inter", sans-serif`;
 
 interface StatsBarProps {
-  blocks: TimeBlockData[];
-  completed: Record<string, boolean>;
+  blocks:     TimeBlockData[];
+  completed:  Record<string, boolean>;
   categories?: Record<string, Category>;
 }
 
+// ── Animated counter ──────────────────────────────────────────
 function useCountUp(target: number, duration = 700) {
-  const [value, setValue] = useState(target);
-  const prev = useRef(target);
+  const [value, setValue] = useState(0);
+  const start  = useRef<number | null>(null);
+  const from   = useRef(0);
 
   useEffect(() => {
-    if (prev.current === target) return;
-    const start = prev.current;
-    const diff = target - start;
-    const startTime = performance.now();
-
-    const tick = (now: number) => {
-      const elapsed = now - startTime;
+    from.current = value;
+    start.current = null;
+    let raf: number;
+    function step(ts: number) {
+      if (!start.current) start.current = ts;
+      const elapsed = ts - start.current;
       const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(start + diff * eased));
-      if (progress < 1) requestAnimationFrame(tick);
-      else prev.current = target;
-    };
-    requestAnimationFrame(tick);
-  }, [target, duration]);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(from.current + (target - from.current) * ease));
+      if (progress < 1) raf = requestAnimationFrame(step);
+    }
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return value;
 }
 
-// SVG circular arc progress ring
-function ArcRing({ pct, size = 96 }: { pct: number; size?: number }) {
-  const strokeW = 7;
-  const r = (size - strokeW) / 2;
-  const circ = 2 * Math.PI * r;
-  // We only use 270° of the circle (¾ arc), starting from bottom-left
-  const arcFraction = 0.75;
-  const totalArc = circ * arcFraction;
-  const done = totalArc * Math.min(pct / 100, 1);
+// ── Arc ring SVG ──────────────────────────────────────────────
+function MiniArcRing({ pct, size = 56 }: { pct: number; size?: number }) {
+  const strokeW   = 4.5;
+  const r         = (size - strokeW) / 2;
+  const circ      = 2 * Math.PI * r;
+  const startAngle = -225; // degrees — start from lower-left
+  const arcSpan   = 270;   // degrees of total arc
+  const totalArc  = (arcSpan / 360) * circ;
+  const done      = (pct / 100) * totalArc;
+
+  const rotate    = startAngle; // CSS transform rotate
 
   return (
-    <svg width={size} height={size} className="block" style={{ transform: "rotate(135deg)" }}>
+    <svg
+      width={size} height={size}
+      style={{ transform: `rotate(${rotate}deg)`, display: "block" }}
+    >
       {/* Track */}
       <circle
         cx={size / 2} cy={size / 2} r={r}
-        fill="none"
-        stroke="currentColor"
+        fill="none" stroke="#f0f0f0"
         strokeWidth={strokeW}
         strokeDasharray={`${totalArc} ${circ}`}
         strokeLinecap="round"
-        className="text-muted/40"
       />
       {/* Progress */}
       <circle
@@ -62,136 +73,102 @@ function ArcRing({ pct, size = 96 }: { pct: number; size?: number }) {
         strokeWidth={strokeW}
         strokeDasharray={`${done} ${circ}`}
         strokeLinecap="round"
-        style={{
-          stroke: "url(#brandGrad)",
-          transition: "stroke-dasharray 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
+        stroke={ORANGE}
+        style={{ transition: "stroke-dasharray 0.8s cubic-bezier(0.16,1,0.3,1)" }}
       />
-      <defs>
-        {/* Use CSS custom properties so the gradient respects light/dark mode */}
-        <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"   style={{ stopColor: "hsl(var(--zip-orange))" }} />
-          <stop offset="100%" style={{ stopColor: "hsl(var(--zip-red))"    }} />
-        </linearGradient>
-      </defs>
     </svg>
   );
 }
 
+// ── Main component ────────────────────────────────────────────
 export function StatsBar({ blocks, completed, categories }: StatsBarProps) {
-  const cats = categories || DEFAULT_CATEGORIES;
-  const totalMin = blocks.reduce((s, b) => s + b.dur, 0);
-  const doneMin  = blocks.reduce((s, b) => s + (completed[b.id] ? b.dur : 0), 0);
-  const completedCount = blocks.filter((b) => completed[b.id]).length;
-  const pct = totalMin > 0 ? Math.round((doneMin / totalMin) * 100) : 0;
-  const animatedPct = useCountUp(pct);
-
-  const totalHours = (totalMin / 60).toFixed(1).replace(".0", "");
-  const doneHours  = (doneMin  / 60).toFixed(1).replace(".0", "");
-
-  const catTotals: Record<string, number> = {};
-  blocks.forEach((b) => { catTotals[b.cat] = (catTotals[b.cat] || 0) + b.dur; });
+  const _cats = categories || DEFAULT_CATEGORIES;
+  const completedCount = blocks.filter(b => completed[b.id]).length;
+  const pct = blocks.length > 0
+    ? Math.round((completedCount / blocks.length) * 100)
+    : 0;
+  const animPct = useCountUp(pct);
 
   return (
-    <div className="mb-5 animate-fade-in space-y-2">
-
-      {/* Top bento row */}
-      <div className="grid grid-cols-3 gap-2">
-
-        {/* Main card — arc ring + percentage (spans 2 cols) */}
-        <div className="col-span-2 rounded-2xl border border-border/40 bg-card/70 backdrop-blur-sm p-4 flex items-center gap-4 overflow-hidden relative">
-          {/* Subtle background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
-
-          {/* Ring */}
-          <div className="relative flex-shrink-0 w-[88px] h-[88px] flex items-center justify-center">
-            <ArcRing pct={pct} size={88} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-extrabold tabular-nums leading-none text-gradient-brand">
-                {animatedPct}
-              </span>
-              <span className="text-[9px] text-muted-foreground font-semibold mt-0.5">%</span>
-            </div>
-          </div>
-
-          {/* Text */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 mb-1">
-              <TrendingUp className="w-3 h-3 text-primary flex-shrink-0" />
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                Today
-              </span>
-            </div>
-            <div className="text-sm font-bold text-foreground leading-snug">
-              {completedCount} of {blocks.length}
-              <span className="text-muted-foreground font-medium"> blocks</span>
-            </div>
-
-            {/* Progress bar */}
-            <div className="mt-2.5 h-1.5 bg-muted/50 rounded-full overflow-hidden">
-              <div
-                className="h-full gradient-brand rounded-full transition-all duration-700 ease-out relative overflow-hidden progress-shimmer"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-1">
-              {[25, 50, 75, 100].map((m) => (
-                <span key={m} className={`text-[8px] font-bold tabular-nums transition-colors ${pct >= m ? "text-primary" : "text-muted-foreground/30"}`}>
-                  {m}%
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Hours card */}
-        <div className="rounded-2xl border border-border/40 bg-card/70 backdrop-blur-sm p-4 flex flex-col justify-between">
-          <Clock3 className="w-4 h-4 text-muted-foreground/60" />
-          <div>
-            <div className="text-xl font-extrabold text-foreground tabular-nums leading-none">
-              {doneHours}
-              <span className="text-sm font-semibold text-muted-foreground">h</span>
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">of {totalHours}h</div>
-          </div>
-          {/* Mini vertical bar */}
-          <div className="h-1 bg-muted/50 rounded-full overflow-hidden mt-1">
-            <div
-              className="h-full gradient-brand rounded-full transition-all duration-700"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
+    <div style={{
+      display: "flex", alignItems: "center", gap: 14,
+      background: "#fff",
+      border: "1px solid #f0f0f0",
+      borderRadius: 14,
+      padding: "13px 16px 13px 14px",
+      marginBottom: 14,
+    }}>
+      {/* Mini arc ring */}
+      <div style={{ position: "relative", width: 56, height: 56, flexShrink: 0 }}>
+        <MiniArcRing pct={pct} size={56} />
+        <div style={{
+          position: "absolute", inset: 0,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+        }}>
+          <span style={{
+            fontSize: 14, fontWeight: 800,
+            color: "#111", lineHeight: 1,
+            fontFamily: SANS,
+          }}>
+            {animPct}
+          </span>
+          <span style={{ fontSize: 8, color: "#aaa", fontFamily: SANS, marginTop: 1 }}>%</span>
         </div>
       </div>
 
-      {/* Category chips row */}
-      {Object.keys(catTotals).length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-0.5">
-          {Object.entries(catTotals).map(([cat, min], idx) => {
-            const c = cats[cat];
-            if (!c) return null;
-            const doneForCat = blocks.filter((b) => b.cat === cat && completed[b.id]).reduce((s, b) => s + b.dur, 0);
-            const catPct = Math.round((doneForCat / min) * 100);
-            const hours = (min / 60).toFixed(1).replace(".0", "");
-            return (
-              <div
-                key={cat}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold
-                           cursor-default transition-all duration-200 hover:scale-105 animate-stagger"
-                style={{ background: c.color, color: c.accent, animationDelay: `${idx * 40}ms` }}
-              >
-                <CatIcon cat={cat} className="w-3 h-3" strokeWidth={2} />
-                <span>{cat}</span>
-                <span className="opacity-50">·</span>
-                <span>{hours}h</span>
-                {catPct > 0 && (
-                  <span className="opacity-70 text-[9px]">{catPct}%</span>
-                )}
-              </div>
-            );
-          })}
+      {/* Right side: label + text + bar */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{
+          fontSize: 10, fontWeight: 700,
+          color: "#aaa", margin: 0,
+          letterSpacing: "0.6px",
+          textTransform: "uppercase",
+          fontFamily: SANS,
+        }}>
+          Today
+        </p>
+        <p style={{
+          fontSize: 14, fontWeight: 600,
+          color: "#111", margin: "3px 0 9px",
+          fontFamily: SANS,
+        }}>
+          {completedCount}{" "}
+          <span style={{ color: "#888", fontWeight: 400 }}>of</span>{" "}
+          {blocks.length} blocks
+        </p>
+
+        {/* Progress bar */}
+        <div style={{
+          height: 5, background: "#f0f0f0",
+          borderRadius: 10, overflow: "hidden",
+        }}>
+          <div style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: `linear-gradient(90deg, #FF8040, ${ORANGE})`,
+            borderRadius: 10,
+            transition: "width 0.7s ease",
+          }} />
         </div>
-      )}
+
+        {/* 4 markers */}
+        <div style={{
+          display: "flex", justifyContent: "space-between",
+          marginTop: 5,
+        }}>
+          {[25, 50, 75, 100].map(m => (
+            <span key={m} style={{
+              fontSize: 9, fontWeight: 600,
+              color: pct >= m ? ORANGE : "#d1d5db",
+              fontFamily: SANS,
+              transition: "color 0.4s",
+            }}>
+              {m}%
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
