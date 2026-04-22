@@ -1,93 +1,178 @@
 // =============================================================
-// ProductiveDay — App Layout with Bottom Nav (6-item mobile nav)
+// ProductiveDay — New App Layout
+// Matches Figma: left 64px icon sidebar + full-width top bar
+// Orange AI circle pinned to sidebar bottom → /chat
+// Auth + onboarding pages: no layout (full-screen)
+// Mobile: bottom nav fallback (4 icons + AI circle)
 // =============================================================
 import { NavLink, useLocation } from "react-router-dom";
-import { CalendarDays, LayoutGrid, Flame, BarChart3, User, Clapperboard, Wallet } from "lucide-react";
+import { LayoutGrid, Flame, CalendarDays, User } from "lucide-react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import { useNavContext } from "@/lib/context/NavContext";
+
+const ORANGE = "#FF5C00";
+
+// Pages that bypass layout entirely
+const NO_LAYOUT_PATHS = [
+  "/login", "/signup", "/auth/callback",
+  "/onboarding", "/onboarding/personalize",
+];
 
 const NAV_ITEMS = [
-  { to: "/",          icon: LayoutGrid,  label: "Planner"  },
-  { to: "/habits",    icon: Flame,       label: "Habits"   },
-  { to: "/creator",   icon: Clapperboard,label: "Creator"  },
-  { to: "/finance",   icon: Wallet,      label: "Finance"  },
-  { to: "/analytics", icon: BarChart3,   label: "Stats"    },
-  { to: "/calendar",  icon: CalendarDays,label: "Calendar" },
-  { to: "/profile",   icon: User,        label: "Profile"  },
+  { to: "/",         Icon: LayoutGrid   },
+  { to: "/habits",   Icon: Flame        },
+  { to: "/calendar", Icon: CalendarDays },
+  { to: "/profile",  Icon: User         },
 ];
+
+function SidebarIcon({ to, Icon, pathname }: { to: string; Icon: typeof LayoutGrid; pathname: string }) {
+  const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+  return (
+    <NavLink to={to} style={{ textDecoration: "none" }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 10,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: active ? "#fff2ec" : "transparent",
+        transition: "background .15s",
+      }}
+        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLDivElement).style.background = "#fafafa"; }}
+        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+      >
+        <Icon size={20} color={active ? ORANGE : "#111"} strokeWidth={active ? 2.2 : 1.6} />
+      </div>
+    </NavLink>
+  );
+}
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const { hideNav: onboardingHideNav } = useNavContext();
+  const path     = location.pathname;
 
-  // Auth pages — no nav, no wrapper
-  const isAuthPage = ["/login", "/signup", "/auth/callback"].includes(location.pathname);
-  if (isAuthPage) return <>{children}</>;
+  // ── No layout for auth / onboarding ──────────────────────────
+  if (NO_LAYOUT_PATHS.includes(path)) return <>{children}</>;
 
-  // Onboarding / AI chat — show children full-screen, no nav, no bottom padding
-  if (onboardingHideNav) {
-    return (
-      <div className="min-h-screen bg-background">
-        <main className="w-full">{children}</main>
-      </div>
-    );
-  }
+  const isChatActive = path === "/chat" || path.startsWith("/chat");
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Nav is fixed, so main just needs bottom padding to clear it */}
-      <main
-        className="w-full"
-        style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" }}
-      >
-        {children}
-      </main>
+    <div style={{
+      display: "flex", flexDirection: "column",
+      height: "100vh", overflow: "hidden",
+      background: "#fff",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
+    }}>
 
-      {/* Bottom navigation — 7 items, mobile-first */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-background/95 backdrop-blur-xl"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
-        <div className="flex items-stretch justify-around px-1 py-1 max-w-lg mx-auto">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
-            const isActive = to === "/"
-              ? location.pathname === "/"
-              : location.pathname.startsWith(to);
+      {/* ── Top header (full width) ──────────────────────────── */}
+      <header style={{
+        height: 56, flexShrink: 0,
+        display: "flex", alignItems: "center",
+        padding: "0 20px 0 16px",
+        borderBottom: "1px solid #e5e7eb",
+        background: "#fff",
+        zIndex: 50,
+      }}>
+        <img src="/logo.svg" alt="Productive Day" width={28} height={28}
+          style={{ objectFit: "contain", marginRight: 10, flexShrink: 0 }} />
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#111", letterSpacing: "-0.2px" }}>
+          Productive Day
+        </span>
+      </header>
 
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 py-1.5 rounded-lg transition-all duration-200",
-                  "active:scale-95",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}
-                style={{ minHeight: 48 }}
-              >
-                <div className={cn(
-                  "relative flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200",
-                  isActive && "bg-primary/10"
-                )}>
-                  <Icon className={cn("w-4 h-4", isActive && "stroke-[2.2px]")} />
-                  {isActive && (
-                    <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-                  )}
-                </div>
-                <span
-                  className={cn(
-                    "text-[9px] font-semibold leading-none truncate w-full text-center px-0.5",
-                    isActive ? "text-primary" : "text-muted-foreground"
-                  )}
-                >
-                  {label}
-                </span>
-              </NavLink>
-            );
-          })}
-        </div>
+      {/* ── Body ─────────────────────────────────────────────── */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+
+        {/* ── Left sidebar (desktop) ───────────────────────────── */}
+        <nav className="pd-sidebar" style={{
+          width: 64, flexShrink: 0,
+          borderRight: "1px solid #e5e7eb",
+          background: "#fff",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingTop: 16,
+          paddingBottom: 20,
+          gap: 0,
+        }}>
+          {/* Nav icons — stacked */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {NAV_ITEMS.map(({ to, Icon }) => (
+              <SidebarIcon key={to} to={to} Icon={Icon} pathname={path} />
+            ))}
+          </div>
+
+          {/* AI Chat circle — pinned to bottom */}
+          <div style={{ marginTop: "auto" }}>
+            <NavLink to="/chat" style={{ textDecoration: "none" }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: "50%",
+                background: ORANGE,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: isChatActive
+                  ? "0 0 0 4px rgba(255,92,0,0.18), 0 4px 14px rgba(255,92,0,0.4)"
+                  : "0 4px 12px rgba(255,92,0,0.3)",
+                transition: "box-shadow .2s, transform .15s",
+                transform: isChatActive ? "scale(1.07)" : "scale(1)",
+              }}>
+                {/* Sparkle / AI icon */}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                  <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/>
+                </svg>
+              </div>
+            </NavLink>
+          </div>
+        </nav>
+
+        {/* ── Main content area ──────────────────────────────── */}
+        <main style={{
+          flex: 1,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+        }}>
+          {children}
+        </main>
+      </div>
+
+      {/* ── Bottom nav (mobile only, via CSS) ──────────────── */}
+      <nav className="pd-bottom-nav" style={{
+        display: "none",
+        position: "fixed", bottom: 0, left: 0, right: 0,
+        height: 60,
+        background: "#fff",
+        borderTop: "1px solid #e5e7eb",
+        alignItems: "center",
+        justifyContent: "space-around",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        zIndex: 100,
+      }}>
+        {NAV_ITEMS.map(({ to, Icon }) => {
+          const active = to === "/" ? path === "/" : path.startsWith(to);
+          return (
+            <NavLink key={to} to={to} style={{ textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44 }}>
+              <Icon size={22} color={active ? ORANGE : "#9ca3af"} strokeWidth={active ? 2.2 : 1.5} />
+            </NavLink>
+          );
+        })}
+        <NavLink to="/chat" style={{ textDecoration: "none" }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: isChatActive ? "#cc3d00" : ORANGE,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 3px 10px rgba(255,92,0,0.3)",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+              <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/>
+            </svg>
+          </div>
+        </NavLink>
       </nav>
+
+      <style>{`
+        @media (max-width: 767px) {
+          .pd-sidebar     { display: none !important; }
+          .pd-bottom-nav  { display: flex !important; }
+          main            { padding-bottom: 60px; overflow-y: auto !important; }
+        }
+      `}</style>
     </div>
   );
 }
