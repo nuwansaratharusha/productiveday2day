@@ -10,13 +10,16 @@ import { createClient } from "@/lib/supabase/client";
 // ── Brand font stack ──────────────────────────────────────────
 const GARAMOND = `"Apple Garamond", "Apple Garamond Light", "EB Garamond", Garamond, Georgia, serif`;
 
-// ── Brand logo SVG (matches Figma orange M/book mark) ────────
-function BrandMark({ size = 52 }: { size?: number }) {
+// ── Brand logo (your actual logo from public/logo.svg) ───────
+function BrandMark({ size = 72 }: { size?: number }) {
   return (
-    <svg width={size} height={Math.round(size * 0.82)} viewBox="0 0 52 43" fill="none">
-      <path d="M0 43V11L26 30L52 11V43H44V21L26 36L8 21V43H0Z" fill="#F4541A" />
-      <rect x="0" y="37" width="52" height="6" rx="1" fill="#F4541A" opacity="0.35" />
-    </svg>
+    <img
+      src="/logo.svg"
+      alt="Productive Day"
+      width={size}
+      height={size}
+      style={{ objectFit: "contain" }}
+    />
   );
 }
 
