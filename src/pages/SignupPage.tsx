@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const GARAMOND = `"Apple Garamond", "Apple Garamond Light", "EB Garamond", Garamond, Georgia, serif`;
 
-function BrandMark({ size = 72 }: { size?: number }) {
+function BrandMark({ size = 140 }: { size?: number }) {
   return (
     <img
       src="/logo.svg"
