@@ -47,21 +47,22 @@ function getSelectedDate(selectedDay: number, defaultDay: number): string {
 // ── Skeleton block ───────────────────────────────────────────
 function BlockSkeleton({ delay = 0 }: { delay?: number }) {
   return (
-    <div
-      className="rounded-2xl border border-border/40 bg-card/50 p-3.5 mb-2 animate-pulse"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-10 rounded-full bg-muted/50 flex-shrink-0" />
-        <div className="w-[18px] h-[18px] rounded-[5px] bg-muted/50 flex-shrink-0" />
-        <div className="flex-1 space-y-2">
-          <div className="h-3.5 bg-muted/50 rounded w-2/5" />
-          <div className="h-2.5 bg-muted/30 rounded w-1/4" />
-        </div>
-        <div className="space-y-1.5 text-right">
-          <div className="h-3 bg-muted/40 rounded w-12" />
-          <div className="h-2.5 bg-muted/25 rounded w-8" />
-        </div>
+    <div style={{
+      borderRadius: 12, border: "1px solid #f0f0f0",
+      background: "#fafafa", padding: "14px 14px",
+      marginBottom: 8, display: "flex", alignItems: "center", gap: 12,
+      animation: "pulse 1.5s ease-in-out infinite",
+      animationDelay: `${delay}ms`,
+    }}>
+      <div style={{ width: 3, height: 36, borderRadius: 2, background: "#efefef", flexShrink: 0 }} />
+      <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#efefef", flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ height: 12, background: "#efefef", borderRadius: 4, width: "40%", marginBottom: 6 }} />
+        <div style={{ height: 10, background: "#f5f5f5", borderRadius: 4, width: "20%" }} />
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <div style={{ height: 12, background: "#efefef", borderRadius: 4, width: 48, marginBottom: 4 }} />
+        <div style={{ height: 10, background: "#f5f5f5", borderRadius: 4, width: 32 }} />
       </div>
     </div>
   );
@@ -362,7 +363,7 @@ export default function Index() {
   }
 
   return (
-    <div style={{ height: "100%", overflowY: "auto", background: "#fff" }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#fff", display: "flex", flexDirection: "column" }}>
 
       {/* ── Focus Mode overlay (student + learning block) ─────── */}
       {focusActive && activeBlock && (
@@ -381,15 +382,10 @@ export default function Index() {
 
       <MigrationBanner />
 
-      <div style={{ maxWidth: 700, margin: "0 auto", padding: "14px 24px 100px" }}>
+      <div style={{ padding: "0 28px 100px" }}>
 
         {/* Stats */}
-        {loading ? (
-          <div className="grid grid-cols-3 gap-2 mb-5">
-            <div className="col-span-2 h-28 rounded-2xl bg-card/40 border border-border/40 animate-pulse" />
-            <div className="h-28 rounded-2xl bg-card/40 border border-border/40 animate-pulse" />
-          </div>
-        ) : (
+        {!loading && (
           <StatsBar blocks={blocks} completed={completed} categories={categories} />
         )}
 
@@ -424,61 +420,26 @@ export default function Index() {
           </button>
         )}
 
-        {/* Schedule section header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#111", fontFamily: `-apple-system,BlinkMacSystemFont,"Inter",sans-serif` }}>
-              {isWeekend ? "Weekend" : "Weekday"}
-              <span style={{ color: "#999", fontWeight: 400, marginLeft: 6 }}>— {DAYS[selectedDay]}</span>
-            </span>
-            {!loading && (
-              <span style={{ fontSize: 11, color: "#bbb", fontFamily: `-apple-system,BlinkMacSystemFont,"Inter",sans-serif` }}>
-                {blocks.length} blocks · {Math.round(blocks.reduce((s, b) => s + b.dur, 0) / 60)}h
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {/* Google Calendar sync */}
-            <GoogleCalendarSync
-              onConnected={() => {
-                if (blocks.length > 0) {
-                  syncBlocksToCalendar(blocks, selectedDate).catch(() => {});
-                }
-              }}
-              onSyncNow={() => {
-                if (blocks.length > 0) {
-                  syncBlocksToCalendar(blocks, selectedDate).catch(() => {});
-                }
-              }}
-            />
-
-            {/* Bell */}
-            {notifPermission !== "granted" && notifPermission !== "denied" && (
-              <Button
-                size="sm" variant="ghost"
-                className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-                onClick={requestNotifPermission}
-                title="Enable time-slot alerts"
-              >
-                <Bell className="w-3.5 h-3.5" />
-              </Button>
-            )}
-            <Button
-              size="sm" variant="ghost"
-              className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-              onClick={() => setCatManagerOpen(true)} title="Categories"
-            >
-              <Palette className="w-3.5 h-3.5" />
+        {/* ── Utility toolbar (minimal, top-right of blocks area) ── */}
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4, marginBottom: 12 }}>
+          <GoogleCalendarSync
+            onConnected={() => { if (blocks.length > 0) syncBlocksToCalendar(blocks, selectedDate).catch(() => {}); }}
+            onSyncNow={() => { if (blocks.length > 0) syncBlocksToCalendar(blocks, selectedDate).catch(() => {}); }}
+          />
+          {notifPermission !== "granted" && notifPermission !== "denied" && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+              onClick={requestNotifPermission} title="Enable time-slot alerts">
+              <Bell className="w-3.5 h-3.5" />
             </Button>
-            <Button
-              size="sm" variant="ghost"
-              className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-              onClick={handleResetOnboarding} title="Reset schedule"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+          )}
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+            onClick={() => setCatManagerOpen(true)} title="Categories">
+            <Palette className="w-3.5 h-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+            onClick={handleResetOnboarding} title="Reset schedule">
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
         </div>
 
         {/* Block list */}
