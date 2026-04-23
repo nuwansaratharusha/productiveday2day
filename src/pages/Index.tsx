@@ -378,16 +378,13 @@ export default function Index() {
         defaultDay={defaultDay}
         time={time}
         onSelectDay={setSelectedDay}
+        blocksCompleted={Object.values(completed).filter(Boolean).length}
+        blocksTotal={blocks.length}
       />
 
       <MigrationBanner />
 
       <div style={{ padding: "0 28px 100px" }}>
-
-        {/* Stats */}
-        {!loading && (
-          <StatsBar blocks={blocks} completed={completed} categories={categories} />
-        )}
 
         {!loading && isBreakActive && activeBlock && (
           <BreakSuggestionCard blockName={activeBlock.block} />
